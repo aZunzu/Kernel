@@ -1,44 +1,46 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
+#include "config.h"
 
-// Aldagai globalak (clock.c eta timer.c erabiliko dituzte)
-extern int exekutatzen;
-extern pthread_mutex_t mutex;
-extern pthread_cond_t cond;
-extern pthread_cond_t cond2;
-extern int done;
-extern int tenp_kop;
-// Funtzioak deklaratu
 void* clock_thread(void* arg);
 void* timer_thread(void* arg);
 
 int main() {
-    printf("=== SINKRONIZAZIOA IKUSTEN ===\n");
+    printf("=== ESQUEMA EXACTO ===\n");
+    printf("E: Clock, T: Timer\n");
+    printf("Clock: %.1f Hz, Timer: %d tick\n\n", CLOCK_HZ, TIMER_TICKS);
     
-    // Mutex eta condition variables hasieratu
-    pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&cond, NULL);
-    pthread_cond_init(&cond2, NULL);
+    // ✅ Inicialización directa
+    SharedData shared = {
+        .mutex = PTHREAD_MUTEX_INITIALIZER,
+        .cond = PTHREAD_COND_INITIALIZER,
+        .cond2 = PTHREAD_COND_INITIALIZER,
+        .done = 0,
+        .tenp_kop = TENP_KOP
+    };
     
-    // Konfigurazioa
-    double clock_hz = 1.0;  // 1 Hz (segundo 1)
-    int timer_ticks = 3;    // 3 tick itxarongo ditu
+    ClockParams clock_params = {&shared, CLOCK_HZ};
+    TimerParams timer_params = {&shared, TIMER_TICKS};
     
-    // Hariak sortu
     pthread_t clock_tid, timer_tid;
     
-    printf("CLOCK eta TIMER sortzen...\n");
-    pthread_create(&clock_tid, NULL, clock_thread, &clock_hz);
-    pthread_create(&timer_tid, NULL, timer_thread, &timer_ticks);
+    printf("Hariak sortzen...\n");
     
-    printf("MAIN-ak itxaroten timer-ak amaitu arte...\n");
-    pthread_join(timer_tid, NULL);
+    // ✅ IMPORTANTE: Timer PRIMERO (necesita coger el mutex primero)
+   pthread_create(&clock_tid, NULL, clock_thread, &clock_params);
+   usleep(100000); // Asegurar que timer cogió el mutex
+    pthread_create(&timer_tid, NULL, timer_thread, &timer_params);
     
-    printf("TIMER amaitu da. CLOCK gelditzen...\n");
-    exekutatzen = 0;
-    pthread_join(clock_tid, NULL);
+
     
-    printf("✅ Sinkronizazioa eginda!\n");
+    printf("Sistemak exekutatzen...\n");
+    printf("Ctrl+\\ para gelditu\n\n");
+    
+    // ✅ Main infinito
+    while (1) {
+        sleep(1);
+    }
+    
     return 0;
 }
