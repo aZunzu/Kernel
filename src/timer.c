@@ -1,8 +1,9 @@
+// timer.c - CORREGIDO según el esquema
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
 
-// ALDAGAI GLOBALAK (clock.c-ren berberak)
+// ALDAGAI GLOBALAK
 extern int exekutatzen;
 extern pthread_mutex_t mutex;
 extern pthread_cond_t cond;
@@ -10,39 +11,38 @@ extern pthread_cond_t cond2;
 extern int done;
 extern int tenp_kop;
 
-// Timer-aren hari nagusia
 void* timer_thread(void* arg) {
-    int ticks_nahi = *(int*)arg;  // Zenbat tick itxarongo dituen
+    int ticks_nahi = *(int*)arg;
     
     printf("⏰ TIMER abian: %d tick itxarongo\n", ticks_nahi);
     
     int tick_jaso = 0;
     
+    // ✅ SEGÚN ESQUEMA: mutex_lock fuera del while
     pthread_mutex_lock(&mutex);
     
     while (exekutatzen && tick_jaso < ticks_nahi) {
-        // ITXARON CLOCK-aren TICK BATERA
-        pthread_cond_wait(&cond, &mutex);
+        // ✅ SEGÚN ESQUEMA: done++ al principio
+        done++;
+        printf("[TIMER] done = %d, Tick %d/%d\n", done, tick_jaso + 1, ticks_nahi);
+        
+        // ✅ SEGÚN ESQUEMA: cond_signal(&cond) para despertar al clock
+        pthread_cond_signal(&cond);
+        
+        // ✅ SEGÚN ESQUEMA: cond_wait(&cond2, &mutex) para esperar siguiente tick
+        pthread_cond_wait(&cond2, &mutex);
         
         if (!exekutatzen) break;
         
-        // TICK bat jaso du
+        // Tick procesado
         tick_jaso++;
-        printf("[TIMER] Tick %d/%d jaso\n", tick_jaso, ticks_nahi);
-        
-        // CLOCK-RI jakinarazi timer gehigarri bat dagoela
-        done++;
-        pthread_cond_signal(&cond2);
-        
-        // ITXARON HURRENGO TICK-ERA
-        pthread_cond_wait(&cond2, &mutex);
     }
     
     pthread_mutex_unlock(&mutex);
     
     if (tick_jaso >= ticks_nahi) {
-        printf("⏰ TIMER: %d tick pasa dira! Mikrosegundo batzuk itxarongo...\n", ticks_nahi);
-        usleep(500000); // 0.5 segundo itxaron (adibidez)
+        printf("⏰ TIMER: %d tick pasa dira!\n", ticks_nahi);
+        usleep(500000);
         printf("⏰ TIMER: Lanak eginda!\n");
     }
     

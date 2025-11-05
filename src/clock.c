@@ -9,7 +9,7 @@ pthread_mutex_t mutex;
 pthread_cond_t cond;
 pthread_cond_t cond2;
 int done = 0;
-int tenp_kop = 2;
+int tenp_kop = 1;
 // Erlojuaren hari nagusia - TICKAK BAKARRIK sortzen ditu
 void* clock_thread(void* arg) {
     double hz = *(double*)arg;
@@ -19,21 +19,23 @@ void* clock_thread(void* arg) {
 
     int tick = 0;
     while (exekutatzen) {  
-        mutex_lock(&mutex);
+        pthread_mutex_lock(&mutex);
             while(done < tenp_kop)
-            cond_wait(&cond, &mutex);
-        Sleep (periodoa);//zenbat mikrosegundo itxaron
+                pthread_cond_wait(&cond, &mutex);
+        usleep((useconds_t)(periodoa * 1000000));//zenbat segundo itxaron (*1000000 delako mikrosegundotan dagoelako)
         tick++;
         done = 0;
          // debug egiteko 10 tickero
         if (tick % 10 == 0) {
             printf("[ERLOJUA] Tick %d\n", tick);
         }
-        cond_broadcast(&cond2);
-        mutex_unlock(&mutex);
-       
+        pthread_cond_broadcast(&cond2);
+        pthread_mutex_unlock(&mutex);
+
     }
 
     printf("Erlojua gelditu da. %d tick sortu dira\n", tick);
     return NULL;
+    
 }
+
