@@ -20,7 +20,7 @@ void* clock_thread(void* arg) {
         while(shared->done < shared->tenp_kop)
             pthread_cond_wait(&shared->cond, &shared->mutex);
         
-        usleep((useconds_t)(periodoa * 1000000));
+        usleep(periodoa * 1000000);
         tick++;
         shared->done = 0;
         
