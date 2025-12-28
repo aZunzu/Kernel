@@ -3,36 +3,40 @@
 
 #include <pthread.h>
 
-// Estructura para datos compartidos
+/* Partekatutako datuen egitura */
 typedef struct {
     pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    pthread_cond_t cond2;
+    pthread_cond_t cond;     // Process Generator-erako
+    pthread_cond_t cond2;    // Scheduler-erako
     int done;
     int tenp_kop;
 } SharedData;
 
-// Estructura para parámetros del Clock
+/* Clock-aren parametroak */
 typedef struct {
     SharedData* shared;
     double hz;
 } ClockParams;
 
-// Estructura para parámetros del Timer  
+/* Timer-aren parametroak */
 typedef struct {
     SharedData* shared;
-    int ticks_nahi;    // Cuántos ticks espera antes de "trabajar"
-    int id;           // ID para identificar cada timer
-    char* izena;      // ✅ Nombre del timer para debug
+    int ticks_nahi;
+    int id;
+    char* izena;
 } TimerParams;
 
-// Configuraciones del sistema
-#define CLOCK_HZ 2.0      // Frecuencia del clock (más rápido)
-#define TENP_KOP 3        // Número de timers
+/* Sistemaren konfigurazioa */
+#define CLOCK_HZ 2.0
+#define TENP_KOP 3
 
-// ✅ FRECUENCIAS DIFERENTES para cada timer
-#define TIMER1_TICKS 2    // Timer 1: 1 Hz (2 ticks / 2 Hz clock = 1 Hz)
-#define TIMER2_TICKS 4    // Timer 2: 0.5 Hz (4 ticks / 2 Hz clock = 0.5 Hz)  
-#define TIMER3_TICKS 6    // Timer 3: 0.33 Hz (6 ticks / 2 Hz clock = 0.33 Hz)
+#define TIMER1_TICKS 2
+#define TIMER2_TICKS 4
+#define TIMER3_TICKS 6
+
+/* CPU arkitekturaren konfigurazioa */
+#define CPU_KOP 1
+#define CORE_KOP 2
+#define HW_THREAD_KOP 2
 
 #endif

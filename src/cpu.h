@@ -1,0 +1,37 @@
+#ifndef CPU_H
+#define CPU_H
+
+#include "pcb.h"
+#include <pthread.h>
+
+/* Hardware thread */
+typedef struct {
+    int id;
+    pcb_t* current_process;
+} hw_thread_t;
+
+/* Core */
+typedef struct {
+    int id;
+    hw_thread_t* hw_threads;
+} core_t;
+
+/* CPU */
+typedef struct {
+    int id;
+    core_t* cores;
+} cpu_t;
+
+/* Sistema osoko CPU multzoa */
+typedef struct {
+    cpu_t* cpus;
+    int cpu_kop;
+    int core_kop;
+    int hw_thread_kop;
+    pthread_mutex_t mutex;
+} cpu_system_t;
+
+/* CPU sistema hasieratzen du */
+void cpu_system_init(cpu_system_t* sys);
+
+#endif
