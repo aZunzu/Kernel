@@ -7,7 +7,7 @@
 void* clock_thread(void* arg);
 void* timer_thread(void* arg);
 
-int main1() {
+int main() {
     printf("=== TIMERRAK MAIZTASUN DESBERDINEKIN ===\n");
     printf("Clock: %.1f Hz, %d timer\n\n", CLOCK_HZ, TENP_KOP);
     
