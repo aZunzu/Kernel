@@ -15,6 +15,7 @@ typedef enum {
 typedef struct {
     SharedData* shared;
     process_queue_t* ready_queue;
+    process_queue_t* blocked_queue;
     process_queue_t* terminated_queue;
     cpu_system_t* cpu_sys;
     sched_policy_t policy;
@@ -23,7 +24,7 @@ typedef struct {
 /* Scheduler haria */
 void* scheduler(void* arg);
 
-/* Hurrengo prozesua aukeratzen du */
+/* Politika nagusia */
 pcb_t* select_next_process(process_queue_t* q, sched_policy_t policy);
 
 #endif
