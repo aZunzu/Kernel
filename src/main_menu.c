@@ -8,13 +8,13 @@
 #include "pcb.h"
 
 /* =======================================================
- * Inprimatzeko funtzio lagungarriak
+ * Inprimatzeko laguntzaile funtzioak (GUI grafikoak)
  * ======================================================= */
 
 void print_ready_queue(process_queue_t* q) {
     printf("\n--- READY QUEUE ---\n");
     if (!q->head) {
-        printf(" (hutsa)\n");
+        printf(" (hutsik)\n");
         return;
     }
     for (pcb_t* p = q->head; p; p = p->next) {
@@ -29,7 +29,7 @@ void print_ready_queue(process_queue_t* q) {
 void print_blocked_queue(process_queue_t* q) {
     printf("\n--- BLOCKED QUEUE ---\n");
     if (!q->head) {
-        printf(" (hutsa)\n");
+        printf(" (hutsik)\n");
         return;
     }
     for (pcb_t* p = q->head; p; p = p->next) {
@@ -64,27 +64,31 @@ void print_running_queue(cpu_system_t* cpu_sys) {
     }
 
     if (!found)
-        printf(" (ez dago RUNNING prozesurik)\n");
+        printf(" (ez dago exekutatzen ari den prozesurik)\n");
 }
 
 /* =======================================================
- * MAIN MENU
+ * MENU NAGUSIA (Erabiltzaile interfazea)
  * ======================================================= */
 
 int main() {
+    // Datuak partekatutako egitura hasieratu
     SharedData shared = {0};
     pthread_mutex_init(&shared.mutex, NULL);
     pthread_cond_init(&shared.cond, NULL);
     pthread_cond_init(&shared.cond2, NULL);
 
+    // CPU sistema hasieratu
     cpu_system_t cpu_sys;
     cpu_system_init(&cpu_sys);
 
+    // Prozesu ilarak sortu
     process_queue_t ready_q, blocked_q, terminated_q;
     queue_init(&ready_q);
     queue_init(&blocked_q);
     queue_init(&terminated_q);
 
+    // Scheduler-aren parametroak konfiguratu
     SchedulerParams sched = {
         .shared = &shared,
         .ready_queue = &ready_q,
@@ -94,12 +98,16 @@ int main() {
         .policy = POLICY_RULETA_AVANZATUA
     };
 
+    // Scheduler hari bat sortu
     pthread_t sched_thread;
     pthread_create(&sched_thread, NULL, scheduler, &sched);
 
     int pid = 1;
     int opt;
 
+    // ============================================
+    // MENU NAGUSIAREN BEGIZTA
+    // ============================================
     while (1) {
         printf("\n==== MENU DIDAKTIKOA ====\n");
         printf("1. Sortu prozesu berria (NEW -> READY)\n");
@@ -115,6 +123,7 @@ int main() {
         if (opt == 0) break;
 
         if (opt == 1) {
+            // Prozesu berria sortu
             pcb_t* p = pcb_create(pid++, rand() % 2);
             p->state = READY;
             queue_push(&ready_q, p);
@@ -122,15 +131,17 @@ int main() {
         }
 
         if (opt == 2) {
+            // Scheduler-ari tick bat exekutatzeko esan
             pthread_mutex_lock(&shared.mutex);
             pthread_cond_signal(&shared.cond2);
             pthread_mutex_unlock(&shared.mutex);
         }
 
-        /* RUNNING -> BLOCKED */
+        /* RUNNING -> BLOCKED transizioa (I/O eskaera) */
         if (opt == 3) {
-            for (int c = 0; c < cpu_sys.cpu_kop; c++)
-                for (int i = 0; i < cpu_sys.core_kop; i++)
+            int aurkitua = 0;
+            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+                for (int i = 0; i < cpu_sys.core_kop; i++) {
                     for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
                         hw_thread_t* hw =
                             &cpu_sys.cpus[c].cores[i].hw_threads[h];
@@ -143,13 +154,19 @@ int main() {
                                 "[I/O] PID=%d RUNNING -> BLOCKED\n",
                                 p->pid
                             );
+                            aurkitua = 1;
                             goto done;
                         }
                     }
-            printf("[I/O] Ez dago RUNNING prozesurik\n");
+                }
+            }
+            done:
+            if (!aurkitua) {
+                printf("[I/O] Ez dago RUNNING prozesurik\n");
+            }
         }
 
-        /* BLOCKED -> READY */
+        /* BLOCKED -> READY transizioa (I/O amaiera) */
         if (opt == 4) {
             pcb_t* p = queue_pop(&blocked_q);
             if (p) {
@@ -172,12 +189,12 @@ int main() {
 
         if (opt == 7)
             print_running_queue(&cpu_sys);
-
-        done:;
     }
 
+    // Programa bukatzeko prestaketa
     shared.done = 1;
     pthread_cond_signal(&shared.cond2);
     pthread_join(sched_thread, NULL);
+    
     return 0;
 }
