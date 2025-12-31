@@ -71,15 +71,24 @@ void* scheduler(void* arg) {
     // Ausazko zenbakiak hasieratu
     srand(time(NULL));
     
-    printf("[SCHEDULER] Hasieratuta - Politika: Ruleta Aurreratua\n");
-    printf("[SCHEDULER] Safety Quantum: %d tick (errore kasuetarako bakarrik)\n", SAFETY_QUANTUM);
+    printf("[SCHEDULER] Hasieratuta - Timer-en seinalea itxaroten\n");
+    printf("[SCHEDULER] Oharra: Orain Scheduler-a Timer-ek aktibatzen dute, ez Clock-ak\n");
     
-    // Kontagailuak
-    int scheduler_tick_count = 0;  // Scheduler-ren tick kontagailua
+    int scheduler_tick_count = 0;
     int safety_preemptions = 0;
     
     while (!params->shared->done && params->shared->sim_running) {
         pthread_mutex_lock(&params->shared->mutex);
+        
+        // **ALDAKETA HAU DA NAGUSIA**
+        // Scheduler-ak ez du Clock-aren cond2 itxaroten, baizik eta Timer-aren seinalea
+        // Timer-ak scheduler_signal = 1 egiten duenean bakarrik exekutatuko da
+        while (params->shared->scheduler_signal == 0 && params->shared->sim_running) {
+            pthread_cond_wait(&params->shared->cond2, &params->shared->mutex);
+        }
+        
+        // Seinalea berrezarri hurrengorako
+        params->shared->scheduler_signal = 0;
         
         // Simulazioa gelditu bada, irten
         if (!params->shared->sim_running) {
@@ -87,16 +96,11 @@ void* scheduler(void* arg) {
             break;
         }
         
-        // Tick bat exekutatzeko itxaron
-        pthread_cond_wait(&params->shared->cond2, &params->shared->mutex);
         pthread_mutex_unlock(&params->shared->mutex);
         
-        // Simulazioa gelditu bada, irten
-        if (!params->shared->sim_running) {
-            break;
-        }
+        scheduler_tick_count++;
         
-        scheduler_tick_count++;  // Scheduler-aren tick kontagailua handitu
+        printf("\n[SCHEDULER] Timer-ak aktibatu du (exekuzio %d)\n", scheduler_tick_count);
         
         // ===== 1. WAITING TIME EGUNERATU =====
         for (pcb_t* p = params->ready_queue->head; p; p = p->next) {
@@ -107,7 +111,7 @@ void* scheduler(void* arg) {
         
         pthread_mutex_lock(&cpu_sys->mutex);
         
-        // ===== 2. EXEKUTATZE FASE =====
+        // ===== 2. EXEKUTATZE FASE ===== (berdin mantentzen da)
         int completed_this_tick = 0;
         
         for (int c = 0; c < cpu_sys->cpu_kop; c++) {
@@ -147,7 +151,7 @@ void* scheduler(void* arg) {
                         // Exekuzioaren aurrerapena erakutsi (3 tickero)
                         if (cur->time_in_cpu % 3 == 0) {
                             int progress = (cur->time_in_cpu * 100) / cur->exec_time;
-                            if (progress < 100) {  // Bukatu gabe bada
+                            if (progress < 100) {
                                 printf("   PID=%d exekutatzen: %d/%d (%d%%)\n",
                                        cur->pid, cur->time_in_cpu, cur->exec_time, progress);
                             }

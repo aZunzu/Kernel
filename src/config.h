@@ -6,12 +6,13 @@
 /* Partekatutako datuen egitura */
 typedef struct {
     pthread_mutex_t mutex;
-    pthread_cond_t cond;     // Process Generator-erako
-    pthread_cond_t cond2;    // Scheduler-erako
+    pthread_cond_t cond;     // Clock -> Timer sinkronizaziorako
+    pthread_cond_t cond2;    // Scheduler-erako (orain Timer-ek erabiltzen dute)
     int done;
     int tenp_kop;
-    int sim_running;  // Simulazioaren kontrola
-    int sim_tick;     // Simulazio tick-ak
+    int sim_running;
+    int sim_tick;
+    int scheduler_signal;    //  Timer-ak Scheduler-i jakinarazteko
 } SharedData;
 
 /* Clock-aren parametroak */
@@ -31,6 +32,7 @@ typedef struct {
 /* Clock eta Timer hari funtzioak */
 void* clock_thread(void* arg);
 void* timer_thread(void* arg);
+
 /* Sistemaren konfigurazioa */
 #define CLOCK_HZ 2.0
 #define TENP_KOP 3

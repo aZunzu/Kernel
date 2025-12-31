@@ -49,7 +49,8 @@ void option_1_synchronization() {
         .done = 0,
         .tenp_kop = TENP_KOP,
         .sim_running = 1,
-        .sim_tick = 0
+        .sim_tick = 0,
+        .scheduler_signal = 0 
     };
     
     ClockParams clock_params = {&shared, CLOCK_HZ};
@@ -188,7 +189,7 @@ void option_2_didactic_menu() {
     shared.tenp_kop = 0;
     shared.sim_running = 1;
     shared.sim_tick = 0;
-    
+    shared.scheduler_signal = 0;
     // CPU sistema hasieratu
     cpu_system_t cpu_sys;
     cpu_system_init(&cpu_sys);
@@ -226,7 +227,7 @@ void option_2_didactic_menu() {
         printf("MENU DIDAKTIKOA - TICK: %d\n", tick_count);
         printf("══════════════════════════════════════════════\n");
         printf("1. Sortu prozesu berria (NEW -> READY)\n");
-        printf("2. Exekutatu scheduler TICK bat\n");
+        printf("2. TIMER aktibatu (honek Scheduler-a aktibatuko du)\n");
         printf("3. RUNNING -> BLOCKED (I/O eskaera)\n");
         printf("4. BLOCKED -> READY (I/O amaiera)\n");
         printf("5. Erakutsi prozesu ilarak\n");
@@ -255,24 +256,27 @@ void option_2_didactic_menu() {
             }
             
             case 2: {
-                tick_count++;
+            tick_count++;
                 printf("\n══════════════════════════════════════════════\n");
-                printf("EXEKUTATZEN: TICK #%d\n", tick_count);
+                printf("TIMER aktibatzen...\n");
+                printf("(Timer honek Scheduler-a aktibatuko du)\n");
                 printf("══════════════════════════════════════════════\n");
                 
-                // Scheduler tick bat exekutatzeko
+                
+                // Orain Timer bat simulatzen dugu, eta Timer horrek aktibatzen du Scheduler-a
                 pthread_mutex_lock(&shared.mutex);
-                pthread_cond_signal(&shared.cond2);
+                shared.scheduler_signal = 1;  // Timer-ak seinalea piztu
+                pthread_cond_signal(&shared.cond2);  // Scheduler-i jakinarazi
                 pthread_mutex_unlock(&shared.mutex);
                 
                 // Itxaron scheduler-aren irteera ikusteko
-                usleep(500000);  // 0.5 segundo
+                usleep(500000);
                 
-                // Erakutsi mezu bat eta itxaron Enter
                 printf("\n══════════════════════════════════════════════\n");
-                printf("TICK #%d bukatu da. Sakatu Enter jarraitzeko...", tick_count);
-                while (getchar() != '\n'); // Garbitu bufferra
-                getchar(); // Enter itxaron
+                printf("TIMER-ak Scheduler-a aktibatu du (TICK #%d)\n", tick_count);
+                printf("Sakatu Enter jarraitzeko...");
+                while (getchar() != '\n');
+                getchar();
                 break;
             }
             
@@ -388,6 +392,7 @@ void option_3_automatic_simulation() {
     shared.tenp_kop = 0;
     shared.sim_running = 1;
     shared.sim_tick = 0;
+    shared.scheduler_signal = 0;
     
     cpu_system_t cpu_sys;
     cpu_system_init(&cpu_sys);
@@ -422,18 +427,19 @@ void option_3_automatic_simulation() {
     pthread_create(&sched_thread, NULL, scheduler, &sched_params);
     
     // Scheduler hasieratu arte itxaron
-    usleep(200000);
+    usleep(500000);
     
     printf("\n╔══════════════════════════════════════════╗\n");
     printf("║      SIMULAZIOA MARTXAN                  ║\n");
     printf("╠══════════════════════════════════════════╣\n");
     printf("║ Iraupena: 15 tick                        ║\n");
-    printf("║ Egoera: Exekutatzen...                   ║\n");
+    printf("║ Scheduler-a Timer-ek aktibatzen dute     ║\n");
     printf("╚══════════════════════════════════════════╝\n\n");
     
-    // 4. SIMULAZIO BEGIZTA NAGUSIA
-    int tick_max = 15;
-    char input;
+    // 4. SIMULAZIO BEGIZTA NAGUSIA - TIMER SIMULATUA
+    int tick_max = 50;
+    int timer_counter = 0;
+    int timer_period = 2;  // Scheduler-a 2 tick-ero aktibatu
     
     for (int tick = 1; tick <= tick_max && shared.sim_running; tick++) {
         shared.sim_tick = tick;
@@ -443,16 +449,24 @@ void option_3_automatic_simulation() {
         printf(" TICK #%d - AUTOMATIKOA\n", tick);
         printf("══════════════════════════════════════════════\n");
         
-        // Exekutatu scheduler tick bat
-        pthread_mutex_lock(&shared.mutex);
-        pthread_cond_signal(&shared.cond2);
-        pthread_mutex_unlock(&shared.mutex);
+        // **HONDAKO ALDAKETA: TIMER SIMULATUA**
+        timer_counter++;
+        if (timer_counter >= timer_period) {
+            printf("[TIMER SIMULATUA] Scheduler-a aktibatzen...\n");
+            
+            // Timer-ak scheduler-i seinalea bidaltzen du
+            pthread_mutex_lock(&shared.mutex);
+            shared.scheduler_signal = 1;
+            pthread_cond_signal(&shared.cond2);
+            pthread_mutex_unlock(&shared.mutex);
+            
+            timer_counter = 0;
+            
+            // Itxaron scheduler-aren erantzuna ikusteko
+            usleep(500000);
+        }
         
-        // Itxaron scheduler-aren irteera ikusteko
-        usleep(800000);  // 0.8 segundo
-        
-        // EKINTZA ALEATORIOAK SIMULATU (zuzenean ilarak erabiliz)
-        
+        // EKINTZA ALEATORIOAK SIMULATU
         // 1. Prozesu berria sortu (30% probabilitatea)
         if (rand() % 100 < 30) {
             pcb_t* p = pcb_create(100 + tick, rand() % 2);
@@ -520,7 +534,7 @@ void option_3_automatic_simulation() {
                queue_count(&terminated_q));
         
         // Pausa txiki bat
-        usleep(500000);
+        usleep(300000);
     }
     
     // 5. SIMULAZIOA AMAITU
@@ -548,6 +562,7 @@ void option_3_automatic_simulation() {
     shared.sim_running = 0;
     shared.done = 1;
     pthread_mutex_lock(&shared.mutex);
+    shared.scheduler_signal = 1;  // Scheduler-a esnatzea
     pthread_cond_signal(&shared.cond2);
     pthread_mutex_unlock(&shared.mutex);
     
