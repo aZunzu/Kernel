@@ -249,7 +249,7 @@ void* scheduler(void* arg) {
                 to_unblock->next = NULL;
                 queue_push(params->ready_queue, to_unblock);
                 
-                printf("  🔓 PID=%d I/O amaitu → READY\n", to_unblock->pid);
+                printf("  PID=%d I/O amaitu → READY\n", to_unblock->pid);
                 io_completed++;
             } else {
                 prev = current;
