@@ -10,10 +10,10 @@ void* timer_thread(void* arg) {
     int id = params->id;
     char* izena = params->izena;
     
-    // ✅ Calcular frecuencia real
+  
     double maiztasuna = (double)CLOCK_HZ / ticks_nahi;
     
-    printf("⏰ %s abian: %d tick (%.2f Hz)\n", izena, ticks_nahi, maiztasuna);
+    printf(" %s abian: %d tick (%.2f Hz)\n", izena, ticks_nahi, maiztasuna);
     
     int tick_jaso = 0;
     int zikloak = 0;
@@ -28,9 +28,9 @@ void* timer_thread(void* arg) {
         printf("[%s] done=%d, Tick %d/%d [Ziklo:%d]\n", 
                izena, shared->done, tick_jaso, ticks_nahi, zikloak);
         
-        // ✅ "Trabajar" cuando llegue a su frecuencia
+        //  lan egin behar denean
         if (tick_jaso >= ticks_nahi) {
-            printf("⏰ %s >>> LAN EGITEN %d. aldia (%.2f Hz) <<<\n", 
+            printf(" %s >>> LAN EGITEN %d. aldia (%.2f Hz) <<<\n", 
                    izena, zikloak/ticks_nahi, maiztasuna);
             tick_jaso = 0;
         }

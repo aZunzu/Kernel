@@ -86,8 +86,8 @@ void option_1_synchronization() {
         usleep(50000);
     }
     
-    printf("\n⏰ Timer motak:\n");
-    printf("- TIMER RAPIDOA: %d tick (%.2f Hz)\n", TIMER1_TICKS, (double)CLOCK_HZ/TIMER1_TICKS);
+    printf("\n Timer motak:\n");
+    printf("- TIMER AZKARRA: %d tick (%.2f Hz)\n", TIMER1_TICKS, (double)CLOCK_HZ/TIMER1_TICKS);
     printf("- TIMER ERDIA: %d tick (%.2f Hz)\n", TIMER2_TICKS, (double)CLOCK_HZ/TIMER2_TICKS);
     printf("- TIMER MANTSOA: %d tick (%.2f Hz)\n", TIMER3_TICKS, (double)CLOCK_HZ/TIMER3_TICKS);
     
@@ -175,7 +175,6 @@ void print_running_queue_menu(cpu_system_t* cpu_sys) {
 void option_2_didactic_menu() {
     printf("\n=== 2. AUKERA: SCHEDULER MENU DIDAKTIKOA ===\n");
     printf("Schedulerraren funtzionamendua pausoz pauso\n");
-    printf("ikasteko modu interaktiboa.\n");
     printf("---------------------------------------------\n");
     printf("GARRANTZITSUA: '2' sakatu ondoren, itxaron scheduler-aren\n");
     printf("irteera ikusteko. Ondoren, sakatu Enter jarraitzeko.\n\n");
@@ -238,7 +237,7 @@ void option_2_didactic_menu() {
         
         if (scanf("%d", &opt) != 1) {
             while (getchar() != '\n');
-            printf("\n❌ Sarrera okerra. Zenbaki bat sartu.\n");
+            printf("\n Sarrera okerra. Zenbaki bat sartu.\n");
             continue;
         }
         
@@ -250,7 +249,7 @@ void option_2_didactic_menu() {
                 p->state = READY;
                 p->exec_time = 5 + rand() % 15;  // Exekuzio denbora laburragoa
                 queue_push(&ready_q, p);
-                printf("\n✅ Prozesu berria: PID=%d (Exec=%d, Prio=%d)\n", 
+                printf("\n Prozesu berria: PID=%d (Exec=%d, Prio=%d)\n", 
                        p->pid, p->exec_time, p->priority);
                 break;
             }
@@ -289,7 +288,7 @@ void option_2_didactic_menu() {
                                 hw->current_process = NULL;
                                 p->state = BLOCKED;
                                 queue_push(&blocked_q, p);
-                                printf("\n⏸️  I/O eskaera: PID=%d RUNNING -> BLOCKED\n", p->pid);
+                                printf("\n I/O eskaera: PID=%d RUNNING -> BLOCKED\n", p->pid);
                                 aurkitua = 1;
                                 goto io_done;
                             }
@@ -298,7 +297,7 @@ void option_2_didactic_menu() {
                 }
                 io_done:
                 if (!aurkitua) {
-                    printf("\n⚠️  Ez dago RUNNING prozesurik\n");
+                    printf("\n Ez dago RUNNING prozesurik\n");
                 }
                 break;
             }
@@ -309,9 +308,9 @@ void option_2_didactic_menu() {
                 if (p) {
                     p->state = READY;
                     queue_push(&ready_q, p);
-                    printf("\n🔄 I/O amaiera: PID=%d BLOCKED -> READY\n", p->pid);
+                    printf("\n I/O amaiera: PID=%d BLOCKED -> READY\n", p->pid);
                 } else {
-                    printf("\n⚠️  Ez dago BLOCKED prozesurik\n");
+                    printf("\n Ez dago BLOCKED prozesurik\n");
                 }
                 break;
             }
@@ -340,7 +339,7 @@ void option_2_didactic_menu() {
             }
                 
             default:
-                printf("\n❌ Aukera okerra. 0 eta 6 artean aukeratu.\n");
+                printf("\n Aukera okerra. 0 eta 6 artean aukeratu.\n");
         }
     }
     
@@ -359,7 +358,7 @@ void option_2_didactic_menu() {
     pthread_cond_destroy(&shared.cond);
     pthread_cond_destroy(&shared.cond2);
     
-    printf("\n✅ Menu didaktikoa amaituta.\n");
+    printf("\n Menu didaktikoa amaituta.\n");
 }
 
 // =======================================================
@@ -460,7 +459,7 @@ void option_3_automatic_simulation() {
             p->state = READY;
             p->exec_time = 3 + rand() % 10;
             queue_push(&ready_q, p);
-            printf("\n[EKINTZA] ✨ Prozesu berria: PID=%d (Exec=%d)\n", p->pid, p->exec_time);
+            printf("\n[EKINTZA]  Prozesu berria: PID=%d (Exec=%d)\n", p->pid, p->exec_time);
         }
         
         // 2. I/O eskaera (20% probabilitatea)
@@ -476,7 +475,7 @@ void option_3_automatic_simulation() {
                             hw->current_process = NULL;
                             p->state = BLOCKED;
                             queue_push(&blocked_q, p);
-                            printf("\n[EKINTZA] ⏸️  I/O eskaera: PID=%d BLOCKED-era\n", p->pid);
+                            printf("\n[EKINTZA]   I/O eskaera: PID=%d BLOCKED-era\n", p->pid);
                             found = 1;
                             goto io_action_done;
                         }
@@ -495,7 +494,7 @@ void option_3_automatic_simulation() {
             if (p) {
                 p->state = READY;
                 queue_push(&ready_q, p);
-                printf("\n[EKINTZA] 🔄 I/O amaiera: PID=%d READY-ra\n", p->pid);
+                printf("\n[EKINTZA] I/O amaiera: PID=%d READY-ra\n", p->pid);
             }
         }
         
@@ -530,7 +529,7 @@ void option_3_automatic_simulation() {
     printf("══════════════════════════════════════════════\n\n");
     
     // Emaitzak erakutsi
-    printf("🏁 FINAL EGOERA:\n");
+    printf(" FINAL EGOERA:\n");
     printf("  Tick guztiak: %d\n", shared.sim_tick);
     printf("  Prozesu totalak: %d\n", 
            queue_count(&ready_q) + queue_count(&blocked_q) + queue_count(&terminated_q));
@@ -554,7 +553,7 @@ void option_3_automatic_simulation() {
     
     pthread_join(sched_thread, NULL);
     
-    printf("\n✅ Simulazio automatikoa ondo amaituta.\n");
+    printf("\n Simulazio automatikoa ondo amaituta.\n");
 }
 
 // =======================================================
@@ -565,26 +564,20 @@ void option_4_system_info() {
     printf("\n=== SISTEMAREN INFORMAZIOA ===\n");
     printf("Kernel Simulatzailea - Sistema Eragileak 2025/2026\n");
     printf("\nOsagai inplementatuak:\n");
-    printf("✅ Clock (sistemaren erlojua) - %.1f Hz\n", CLOCK_HZ);
-    printf("✅ Timer anitzak frekuntza desberdinetan (%d)\n", TENP_KOP);
-    printf("✅ Prozesuen sortzailea (Process Generator)\n");
-    printf("✅ Scheduler (Ruleta Aurreratua politika)\n");
-    printf("✅ CPU sistema multi-core (%d CPU × %d Core × %d HW Thread)\n",
+    printf(" Clock (sistemaren erlojua) - %.1f Hz\n", CLOCK_HZ);
+    printf(" Timer anitzak frekuntzia desberdinetan (%d)\n", TENP_KOP);
+    printf(" Prozesuen sortzailea (Process Generator)\n");
+    printf(" Scheduler (Ruleta Aurreratua politika)\n");
+    printf(" CPU sistema multi-core (%d CPU × %d Core × %d HW Thread)\n",
            CPU_KOP, CORE_KOP, HW_THREAD_KOP);
-    printf("✅ Prozesuen ilarak (Ready, Blocked, Terminated)\n");
-    printf("✅ PCB (Process Control Block)\n");
-    printf("\nProiektuaren zatiak:\n");
-    printf("1. Sistemaren arkitektura - Oinarrizko egitura eta sinkronizazioa\n");
-    printf("2. Planifikatzailea - Prozesuen exekuzioaren kudeaketa\n");
-    printf("3. Memoriaren kudeatzailea - (ETORKIZUNEAN IMPLEMENTATZEKOA)\n");
+    printf(" Prozesuen ilarak (Ready, Blocked, Terminated)\n");
+    printf(" PCB (Process Control Block)\n");
     printf("\nEragiketa moduak:\n");
     printf("1. Sinkronizazio proba (Clock/Timer)\n");
     printf("2. Menu didaktikoa (Scheduler interaktiboa)\n");
     printf("3. Simulazio automatikoa (erabilera erreala)\n");
-    printf("\nGarapen egoera:\n");
-    printf("- Parte 1 (Arkitektura): ✅ Osatuta\n");
-    printf("- Parte 2 (Scheduler): ✅ Osatuta\n");
-    printf("- Parte 3 (Memoria): 🔄 Garapen fasean\n");
+  
+  
 }
 
 // =======================================================
@@ -606,7 +599,7 @@ int main() {
         show_main_menu();
         if (scanf("%d", &option) != 1) {
             while (getchar() != '\n'); // Garbitu bufferra
-            printf("\n❌ Sarrera okerra. Zenbaki bat sartu.\n");
+            printf("\n Sarrera okerra. Zenbaki bat sartu.\n");
             continue;
         }
         
@@ -627,7 +620,7 @@ int main() {
                 printf("\nAgur! Simulatzailea erabiltzeagatik eskerrik asko.\n");
                 break;
             default:
-                printf("\n❌ Aukera okerra. 0 eta 4 artean aukeratu.\n");
+                printf("\n Aukera okerra. 0 eta 4 artean aukeratu.\n");
         }
         
         if (option != 0) {

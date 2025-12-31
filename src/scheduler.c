@@ -123,7 +123,7 @@ void* scheduler(void* arg) {
                         
                         // A) PROZESUA BUKATU BADA (naturalki)
                         if (cur->time_in_cpu >= cur->exec_time) {
-                            printf("  ✅ PID=%d BUKATUTA (%d tick)\n", 
+                            printf("   PID=%d BUKATUTA (%d tick)\n", 
                                    cur->pid, cur->time_in_cpu);
                             cur->state = TERMINATED;
                             queue_push(params->terminated_queue, cur);
@@ -133,9 +133,8 @@ void* scheduler(void* arg) {
                         }
                         
                         // B) SAFETY QUANTUM (errore kasuetarako bakarrik)
-                        // ALDATUTA: Ez da quantum finkoa, safety net bakarrik
                         if (cur->time_in_cpu >= SAFETY_QUANTUM) {
-                            printf("  ⚠️  PID=%d → READY (safety quantum, %d tick)\n", 
+                            printf("    PID=%d → READY (safety quantum, %d tick)\n", 
                                    cur->pid, cur->time_in_cpu);
                             cur->state = READY;
                             queue_push(params->ready_queue, cur);
@@ -144,14 +143,12 @@ void* scheduler(void* arg) {
                             continue;
                         }
                         
-                        // C) BESTELA, jarraitu exekutatzen
-                        // EZ DAGO QUANTUM FINKORIK - RULETA AURRERATUAK ERABAKITZEN DU
-                        
+                        // C) BESTELA, jarraitu exekutatzen                      
                         // Exekuzioaren aurrerapena erakutsi (3 tickero)
                         if (cur->time_in_cpu % 3 == 0) {
                             int progress = (cur->time_in_cpu * 100) / cur->exec_time;
                             if (progress < 100) {  // Bukatu gabe bada
-                                printf("  📊 PID=%d exekutatzen: %d/%d (%d%%)\n",
+                                printf("   PID=%d exekutatzen: %d/%d (%d%%)\n",
                                        cur->pid, cur->time_in_cpu, cur->exec_time, progress);
                             }
                         }
@@ -174,10 +171,10 @@ void* scheduler(void* arg) {
             }
             
             if (running_count > 0) {
-                printf("  🔄 %d prozesu exekutatzen\n", running_count);
+                printf("   %d prozesu exekutatzen\n", running_count);
             }
         } else {
-            printf("  ⚡ %d prozesu bukatu\n", completed_this_tick);
+            printf("   %d prozesu bukatu\n", completed_this_tick);
         }
         
         // ===== 3. ESLEIPEN FASE =====
@@ -202,7 +199,7 @@ void* scheduler(void* arg) {
                         hw->current_process = p;
                         dispatched_this_tick++;
                         
-                        printf("  📌 PID=%d → HW %d-%d-%d (Prio=%d)\n", 
+                        printf("   PID=%d → HW %d-%d-%d (Prio=%d)\n", 
                                p->pid, c, i, h, p->priority);
                     }
                 }
@@ -217,10 +214,10 @@ void* scheduler(void* arg) {
             }
             
             if (ready_count > 0) {
-                printf("  ⚠️  READY ilaran %d prozesu, HW guztiak okupatuta\n", ready_count);
+                printf("    READY ilaran %d prozesu, HW guztiak okupatuta\n", ready_count);
             }
         } else {
-            printf("  🎯 %d prozesu esleitu\n", dispatched_this_tick);
+            printf("   %d prozesu esleitu\n", dispatched_this_tick);
         }
         
         // ===== 4. BLOCKED PROZESUAK KUDEATU (I/O) =====
@@ -262,7 +259,7 @@ void* scheduler(void* arg) {
         
         // ===== 5. ESTATISTIKAK EGUNERATU (3 tickero) =====
         if (scheduler_tick_count % 3 == 0) {  // ALDATUTA: scheduler_tick_count erabilita
-            printf("\n  📊 TICK %d - SISTEMA ESTATISTIKAK:\n", scheduler_tick_count);
+            printf("\n   TICK %d - SISTEMA ESTATISTIKAK:\n", scheduler_tick_count);
             
             // Kontatu prozesu mota bakoitzeko
             int running_count = 0;
@@ -320,8 +317,8 @@ void* scheduler(void* arg) {
         usleep(200000);  // 0.2 segundo
     }
     
-    printf("[SCHEDULER] %d tick-etan bukatu da\n", scheduler_tick_count);
-    printf("[SCHEDULER] Safety preemptions guztira: %d\n", safety_preemptions);
+    printf(" [SCHEDULER] %d tick-etan bukatu da\n", scheduler_tick_count);
+    printf(" [SCHEDULER] Safety preemptions guztira: %d\n", safety_preemptions);
     
     return NULL;
 }
