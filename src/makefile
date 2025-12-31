@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -pthread -g main.c clock.c timer.c scheduler.c process_generator.c cpu.c pcb.c process_queue.c -o kernel_sim

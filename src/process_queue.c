@@ -39,3 +39,17 @@ int queue_is_empty(process_queue_t* q) {
     pthread_mutex_unlock(&q->mutex);
     return empty;
 }
+
+int queue_count(process_queue_t* q) {
+    pthread_mutex_lock(&q->mutex);
+    
+    int count = 0;
+    pcb_t* current = q->head;
+    while (current != NULL) {
+        count++;
+        current = current->next;
+    }
+    
+    pthread_mutex_unlock(&q->mutex);
+    return count;
+}

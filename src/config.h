@@ -10,6 +10,8 @@ typedef struct {
     pthread_cond_t cond2;    // Scheduler-erako
     int done;
     int tenp_kop;
+    int sim_running;  // Simulazioaren kontrola
+    int sim_tick;     // Simulazio tick-ak
 } SharedData;
 
 /* Clock-aren parametroak */
@@ -26,6 +28,9 @@ typedef struct {
     char* izena;
 } TimerParams;
 
+/* Clock eta Timer hari funtzioak */
+void* clock_thread(void* arg);
+void* timer_thread(void* arg);
 /* Sistemaren konfigurazioa */
 #define CLOCK_HZ 2.0
 #define TENP_KOP 3
