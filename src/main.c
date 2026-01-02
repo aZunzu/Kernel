@@ -253,7 +253,7 @@ void option_2_didactic_menu() {
             case 1: {
                 pcb_t* p = pcb_create(pid++, rand() % 2);
                 p->state = READY;
-                p->exec_time = 5 + rand() % 15;  // Exekuzio denbora laburragoa
+                p->exec_time = 2 + rand() % 6;  // Exekuzio denbora laburragoa
                 queue_push(&ready_q, p);
                 printf("\n Prozesu berria: PID=%d (Exec=%d, Prio=%d)\n", 
                        p->pid, p->exec_time, p->priority);
@@ -414,7 +414,7 @@ void option_3_automatic_simulation() {
     for (int i = 0; i < 5; i++) {
         pcb_t* p = pcb_create(i+1, rand() % 2);
         p->state = READY;
-        p->exec_time = 5 + rand() % 15;
+        p->exec_time = 2 + rand() % 6;
         queue_push(&ready_q, p);
         printf("  PID=%d sortuta (Prio=%d, Exec=%d)\n", 
                p->pid, p->priority, p->exec_time);
@@ -451,7 +451,7 @@ void option_3_automatic_simulation() {
     // 6. TIMER REAL BAT SORTU SCHEDULER-ENTZAT
     TimerParams timer_params;
     timer_params.shared = &shared;
-    timer_params.ticks_nahi = 1;  // Scheduler-a TICK BAKOITZEAN aktibatu
+    timer_params.ticks_nahi = 2;  // Scheduler-a TICK BAKOITZEAN aktibatu
     timer_params.id = 1;
     timer_params.izena = "SCHEDULER TIMER";
     timer_params.activate_scheduler = 1;  // BAI, scheduler aktibatu
