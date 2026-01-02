@@ -15,5 +15,10 @@ pcb_t* pcb_create(int pid, int priority) {
     p->state = NEW;
     p->next = NULL;
 
+    // Memoria eremuak hasieratu
+    p->mm_info = NULL;
+    p->pc = 0;
+    p->exit_code = 0;
+
     return p;
 }

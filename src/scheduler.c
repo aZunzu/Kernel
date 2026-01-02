@@ -6,12 +6,31 @@
 #include "process_queue.h"
 #include "cpu.h"
 #include "pcb.h"
+#include "execution.h"
+#include "loader.h"
 
 #define SAFETY_QUANTUM 50  // Safety net: 50 tick baino gehiago exekutatzen badu
 
 /* =======================================================
  * FUNTZIO LAGUNTZAILEAK
  * ======================================================= */
+
+// Funtzio laguntzaileak prozesu motaren izena lortzeko
+static const char* get_process_type_name(process_type_t type) {
+    switch(type) {
+        case PROCESS_TICK_BASED: return "TICK bidezkoa";
+        case PROCESS_INSTRUCTION_BASED: return "INSTRUKZIO bidezkoa";
+        default: return "EZEZAGUNA";
+    }
+}
+
+static const char* get_process_type_short(process_type_t type) {
+    switch(type) {
+        case PROCESS_TICK_BASED: return "TICK";
+        case PROCESS_INSTRUCTION_BASED: return "INSTR";
+        default: return "???";
+    }
+}
 
 // FIFO politika
 static pcb_t* fifo_select(process_queue_t* q) {
@@ -62,7 +81,7 @@ pcb_t* select_next_process(process_queue_t* q, sched_policy_t policy) {
 }
 
 /* =======================================================
- * SCHEDULER NAGUSIA
+ * SCHEDULER NAGUSIA - HIBRIDOA (TICK + INSTRUKZIO BIDEZKOA)
  * ======================================================= */
 
 void* scheduler(void* arg) {
@@ -72,16 +91,18 @@ void* scheduler(void* arg) {
     // Ausazko zenbakiak hasieratu
     srand(time(NULL));
     
-    printf("[SCHEDULER] Hasieratuta - Timer-en seinalea itxaroten\n");
-    printf("[SCHEDULER] Oharra: Orain Scheduler-a Timer-ek aktibatzen dute, ez Clock-ak\n");
+    printf("[SCHEDULER] Hasieratuta - Sistema hibridoa\n");
+    printf("[SCHEDULER] Prozesu motak: TICK bidezkoak eta INSTRUKZIO bidezkoak\n");
+    printf("[SCHEDULER] Timer-ak aktibatuko du exekuzio bakoitzean\n");
     
     int scheduler_tick_count = 0;
     int safety_preemptions = 0;
+    int total_instructions_executed = 0;
     
     while (params->shared->sim_running) {
         pthread_mutex_lock(&params->shared->mutex);
         
-        // Espera scheduler_signal del Timer
+        // Timer-aren seinalea itxaron
         while (params->shared->scheduler_signal == 0 && params->shared->sim_running) {
             pthread_cond_wait(&params->shared->cond_scheduler, &params->shared->mutex);
         }
@@ -100,7 +121,7 @@ void* scheduler(void* arg) {
         scheduler_tick_count++;
         
         int current_tick = params->shared->sim_tick;
-        printf("\n[SCHEDULER] Timer-ak aktibatu du (Tick sistemakoa: %d, Exekuzio %d)\n", 
+        printf("\n[SCHEDULER] Timer-ak aktibatu du (Sistemaren TICK: %d, Scheduler exekuzio: %d)\n", 
                current_tick, scheduler_tick_count);
         
         // ===== 1. WAITING TIME EGUNERATU =====
@@ -112,8 +133,11 @@ void* scheduler(void* arg) {
         
         pthread_mutex_lock(&cpu_sys->mutex);
         
-        // ===== 2. EXEKUTATZE FASE ===== (berdin mantentzen da)
+        // ===== 2. EXEKUTATZE FASE - HIBRIDOA =====
         int completed_this_tick = 0;
+        int instructions_this_tick = 0;
+        int tick_based_procs = 0;
+        int instruction_based_procs = 0;
         
         for (int c = 0; c < cpu_sys->cpu_kop; c++) {
             for (int i = 0; i < cpu_sys->core_kop; i++) {
@@ -123,38 +147,136 @@ void* scheduler(void* arg) {
                     pcb_t* cur = hw->current_process;
                     
                     if (cur && cur->state == RUNNING) {
-                        // Prozesua exekutatu (tick bat)
-                        cur->time_in_cpu++;
-                        
-                        // A) PROZESUA BUKATU BADA (naturalki)
-                        if (cur->time_in_cpu >= cur->exec_time) {
-                            printf("   PID=%d BUKATUTA (%d tick)\n", 
-                                   cur->pid, cur->time_in_cpu);
+                        // Instrukzio bidezko prozesuek memoria infoa behar dute; bestela, bukatutzat eman
+                        if (cur->type == PROCESS_INSTRUCTION_BASED && (!cur->mm_info || !cur->mm_info->page_table)) {
+                            printf("   PID=%d ERROREA: memoria informaziorik gabe (%s)\n",
+                                   cur->pid, get_process_type_short(cur->type));
                             cur->state = TERMINATED;
+                            cur->exit_code = -2;
                             queue_push(params->terminated_queue, cur);
                             hw->current_process = NULL;
                             completed_this_tick++;
                             continue;
                         }
-                        
-                        // B) SAFETY QUANTUM (errore kasuetarako bakarrik)
-                        if (cur->time_in_cpu >= SAFETY_QUANTUM) {
-                            printf("    PID=%d → READY (safety quantum, %d tick)\n", 
-                                   cur->pid, cur->time_in_cpu);
-                            cur->state = READY;
-                            queue_push(params->ready_queue, cur);
-                            hw->current_process = NULL;
-                            safety_preemptions++;
-                            continue;
+                        // Kontatu prozesu motak
+                        if (cur->type == PROCESS_TICK_BASED) {
+                            tick_based_procs++;
+                            
+                            // ===== PROZESU TICK BIDEZKOA (1-2 zatia) =====
+                            cur->time_in_cpu++;
+                            
+                            // A) PROZESUA BUKATU (exec_time TICK-etatik)
+                            if (cur->time_in_cpu >= cur->exec_time) {
+                                printf("   PID=%d BUKATUTA (%s: %d/%d TICK)\n", 
+                                       cur->pid, get_process_type_short(cur->type),
+                                       cur->time_in_cpu, cur->exec_time);
+                                cur->state = TERMINATED;
+                                queue_push(params->terminated_queue, cur);
+                                hw->current_process = NULL;
+                                completed_this_tick++;
+                                continue;
+                            }
+                            
+                            // B) SAFETY QUANTUM
+                            if (cur->time_in_cpu >= SAFETY_QUANTUM) {
+                                printf("   PID=%d → READY (safety quantum, %d TICK)\n", 
+                                       cur->pid, cur->time_in_cpu);
+                                cur->state = READY;
+                                queue_push(params->ready_queue, cur);
+                                hw->current_process = NULL;
+                                safety_preemptions++;
+                                continue;
+                            }
+                            
+                            // C) PROGRESOA ERAKUTSI
+                            if (cur->time_in_cpu % 3 == 0) {
+                                int progress = (cur->time_in_cpu * 100) / cur->exec_time;
+                                if (progress < 100) {
+                                    printf("   PID=%d exekutatzen (%s): %d/%d TICK (%d%%)\n",
+                                           cur->pid, get_process_type_short(cur->type),
+                                           cur->time_in_cpu, cur->exec_time, progress);
+                                }
+                            }
                         }
                         
-                        // C) BESTELA, jarraitu exekutatzen                      
-                        // Exekuzioaren aurrerapena erakutsi (3 tickero)
-                        if (cur->time_in_cpu % 3 == 0) {
-                            int progress = (cur->time_in_cpu * 100) / cur->exec_time;
-                            if (progress < 100) {
-                                printf("   PID=%d exekutatzen: %d/%d (%d%%)\n",
-                                       cur->pid, cur->time_in_cpu, cur->exec_time, progress);
+                        // ===== PROZESU INSTRUKZIO BIDEZKOA (3. zatia) =====
+                        else if (cur->type == PROCESS_INSTRUCTION_BASED) {
+                            instruction_based_procs++;
+                            
+                            // Instrukzio bat exekutatu
+                            int result = execute_step(hw, cur);
+                            
+                            if (result > 0) {
+                                cur->time_in_cpu++;  // Instrukzio bat gehiago
+                                instructions_this_tick++;
+                                total_instructions_executed++;
+                                
+                                // A) PROZESUA BUKATU (exit agindua)
+                                if (result == 0) {
+                                    printf("   PID=%d BUKATUTA (%s: EXIT agindua, %d instrukzio)\n", 
+                                           cur->pid, get_process_type_short(cur->type),
+                                           cur->time_in_cpu);
+                                    cur->state = TERMINATED;
+                                    queue_push(params->terminated_queue, cur);
+                                    hw->current_process = NULL;
+                                    completed_this_tick++;
+                                    
+                                    // TLB garbitu
+                                    mmu_flush_tlb(&hw->mmu);
+                                    continue;
+                                }
+                                
+                                // B) PROZESUA BUKATU (exec_time instrukzioetatik)
+                                if (cur->time_in_cpu >= cur->exec_time) {
+                                    printf("   PID=%d BUKATUTA (%s: instrukzio max, %d/%d)\n", 
+                                           cur->pid, get_process_type_short(cur->type),
+                                           cur->time_in_cpu, cur->exec_time);
+                                    cur->state = TERMINATED;
+                                    queue_push(params->terminated_queue, cur);
+                                    hw->current_process = NULL;
+                                    completed_this_tick++;
+                                    
+                                    // TLB garbitu
+                                    mmu_flush_tlb(&hw->mmu);
+                                    continue;
+                                }
+                                
+                                // C) SAFETY QUANTUM
+                                if (cur->time_in_cpu >= SAFETY_QUANTUM) {
+                                    printf("   PID=%d → READY (%s: safety quantum, %d instrukzio)\n", 
+                                           cur->pid, get_process_type_short(cur->type),
+                                           cur->time_in_cpu);
+                                    cur->state = READY;
+                                    queue_push(params->ready_queue, cur);
+                                    hw->current_process = NULL;
+                                    safety_preemptions++;
+                                    
+                                    // TLB garbitu
+                                    mmu_flush_tlb(&hw->mmu);
+                                    continue;
+                                }
+                                
+                                // D) PROGRESOA ERAKUTSI
+                                if (cur->time_in_cpu % 3 == 0) {
+                                    int progress = (cur->time_in_cpu * 100) / cur->exec_time;
+                                    if (progress < 100) {
+                                        printf("   PID=%d exekutatzen (%s): %d/%d instrukzio (%d%%)\n",
+                                               cur->pid, get_process_type_short(cur->type),
+                                               cur->time_in_cpu, cur->exec_time, progress);
+                                    }
+                                }
+                            } else if (result < 0) {
+                                // Errorea exekuzioan
+                                printf("   PID=%d ERROREA exekuzioan (%s)\n", 
+                                       cur->pid, get_process_type_short(cur->type));
+                                cur->state = TERMINATED;
+                                cur->exit_code = -1;
+                                queue_push(params->terminated_queue, cur);
+                                hw->current_process = NULL;
+                                completed_this_tick++;
+                                
+                                // TLB garbitu
+                                mmu_flush_tlb(&hw->mmu);
                             }
                         }
                     }
@@ -162,8 +284,8 @@ void* scheduler(void* arg) {
             }
         }
         
+        // Informazioa erakutsi
         if (completed_this_tick == 0) {
-            // Egiaztatu exekutatzen ari diren prozesurik dagoen
             int running_count = 0;
             for (int c = 0; c < cpu_sys->cpu_kop; c++) {
                 for (int i = 0; i < cpu_sys->core_kop; i++) {
@@ -176,7 +298,8 @@ void* scheduler(void* arg) {
             }
             
             if (running_count > 0) {
-                printf("   %d prozesu exekutatzen\n", running_count);
+                printf("   %d prozesu exekutatzen (TICK: %d, INSTR: %d, Instrukzioak: %d)\n", 
+                       running_count, tick_based_procs, instruction_based_procs, instructions_this_tick);
             }
         } else {
             printf("   %d prozesu bukatu\n", completed_this_tick);
@@ -191,12 +314,9 @@ void* scheduler(void* arg) {
                     
                     hw_thread_t* hw = &cpu_sys->cpus[c].cores[i].hw_threads[h];
                     
-                    // HW thread libre bat badago
                     if (!hw->current_process) {
                         pcb_t* p = select_next_process(params->ready_queue, params->policy);
-                        if (!p) {
-                            continue;  // Ez dago prozesurik
-                        }
+                        if (!p) continue;
                         
                         // Prozesua esleitu
                         p->state = RUNNING;
@@ -204,15 +324,29 @@ void* scheduler(void* arg) {
                         hw->current_process = p;
                         dispatched_this_tick++;
                         
-                        printf("   PID=%d → HW %d-%d-%d (Prio=%d)\n", 
-                               p->pid, c, i, h, p->priority);
+                        // **KONFIGURAZIOA PROZESU MOTAREN ARABERA**
+                        if (p->type == PROCESS_INSTRUCTION_BASED && p->mm_info) {
+                            // INSTRUKZIO bidezko prozesua (memoria birtuala)
+                            hw->mmu.ptbr = p->mm_info->ptbr;
+                            hw->pc = p->pc = p->mm_info->code_start;
+                            mmu_flush_tlb(&hw->mmu);
+                            
+                            printf("   PID=%d → HW %d-%d-%d (%s, PC=0x%06X, PTBR=0x%06X)\n", 
+                                   p->pid, c, i, h, get_process_type_short(p->type),
+                                   hw->pc, hw->mmu.ptbr);
+                        } else {
+                            // TICK bidezko prozesua
+                            printf("   PID=%d → HW %d-%d-%d (%s, Prio=%d, Exec=%d %s)\n", 
+                                   p->pid, c, i, h, get_process_type_short(p->type),
+                                   p->priority, p->exec_time,
+                                   (p->type == PROCESS_TICK_BASED) ? "TICK" : "instrukzio");
+                        }
                     }
                 }
             }
         }
         
         if (dispatched_this_tick == 0) {
-            // Egiaztatu READY ilaran prozesurik dagoen
             int ready_count = 0;
             for (pcb_t* p = params->ready_queue->head; p; p = p->next) {
                 if (p->state == READY) ready_count++;
@@ -226,7 +360,6 @@ void* scheduler(void* arg) {
         }
         
         // ===== 4. BLOCKED PROZESUAK KUDEATU (I/O) =====
-        // Simulazioa: zenbait prozesu ausaz READY-ra itzuli
         int io_completed = 0;
         pcb_t* prev = NULL;
         pcb_t* current = params->blocked_queue->head;
@@ -254,7 +387,8 @@ void* scheduler(void* arg) {
                 to_unblock->next = NULL;
                 queue_push(params->ready_queue, to_unblock);
                 
-                printf("  PID=%d I/O amaitu → READY\n", to_unblock->pid);
+                printf("  PID=%d I/O amaitu → READY (%s)\n", 
+                       to_unblock->pid, get_process_type_short(to_unblock->type));
                 io_completed++;
             } else {
                 prev = current;
@@ -262,10 +396,10 @@ void* scheduler(void* arg) {
             }
         }
         
-        // ===== 5. ESTATISTIKAK EGUNERATU (3 tickero) =====
-        if (scheduler_tick_count % 3 == 0) {  // ALDATUTA: scheduler_tick_count erabilita
+        // ===== 5. ESTATISTIKAK EGUNERATU =====
+        if (scheduler_tick_count % 4 == 0) {
             int current_tick = params->shared->sim_tick;
-            printf("\n   TICK %d (Exekuzio %d) - SISTEMA ESTATISTIKAK:\n", 
+            printf("\n   TICK %d (Scheduler exekuzio %d) - SISTEMA ESTATISTIKAK:\n", 
                    current_tick, scheduler_tick_count);
             
             // Kontatu prozesu mota bakoitzeko
@@ -273,13 +407,18 @@ void* scheduler(void* arg) {
             int ready_count = 0;
             int blocked_count = 0;
             int terminated_count = 0;
+            int tick_running = 0;
+            int instruction_running = 0;
             
             // RUNNING kontatu
             for (int c = 0; c < cpu_sys->cpu_kop; c++) {
                 for (int i = 0; i < cpu_sys->core_kop; i++) {
                     for (int h = 0; h < cpu_sys->hw_thread_kop; h++) {
-                        if (cpu_sys->cpus[c].cores[i].hw_threads[h].current_process) {
+                        pcb_t* p = cpu_sys->cpus[c].cores[i].hw_threads[h].current_process;
+                        if (p) {
                             running_count++;
+                            if (p->type == PROCESS_TICK_BASED) tick_running++;
+                            else instruction_running++;
                         }
                     }
                 }
@@ -300,17 +439,27 @@ void* scheduler(void* arg) {
                 if (p->state == TERMINATED) terminated_count++;
             }
             
-            printf("    • RUNNING: %d prozesu\n", running_count);
-            printf("    • READY: %d prozesu\n", ready_count);
-            printf("    • BLOCKED: %d prozesu\n", blocked_count);
-            printf("    • TERMINATED: %d prozesu\n", terminated_count);
+            printf("    • Prozesuak: RUNNING=%d (TICK:%d, INSTR:%d), READY=%d\n",
+                   running_count, tick_running, instruction_running, ready_count);
+            printf("    • BLOCKED=%d, TERMINATED=%d\n", blocked_count, terminated_count);
+            printf("    • Instrukzioak: %d (guztira: %d)\n",
+                   instructions_this_tick, total_instructions_executed);
             
             // CPU erabilera kalkulatu
             int total_hw = cpu_sys->cpu_kop * cpu_sys->core_kop * cpu_sys->hw_thread_kop;
-            printf("    • CPU erabilera: %d/%d HW thread (%.0f%%)\n",
-                   running_count,
-                   total_hw,
-                   (running_count * 100.0) / total_hw);
+            if (total_hw > 0) {
+                printf("    • CPU erabilera: %d/%d HW thread (%.0f%%)\n",
+                       running_count,
+                       total_hw,
+                       (running_count * 100.0) / total_hw);
+            }
+            
+            // Memoria estatistikak
+            if (phys_mem.data != NULL) {
+                printf("    • Memoria: %u frame libre (%u KB erabilgarri)\n",
+                       phys_mem.free_frames, 
+                       phys_mem.free_frames * PAGE_SIZE / 1024);
+            }
             
             // Safety preemptions erakutsi
             if (safety_preemptions > 0) {
@@ -320,12 +469,13 @@ void* scheduler(void* arg) {
         
         pthread_mutex_unlock(&cpu_sys->mutex);
         
-        // Pausa minima (ez blokeatzen main loopa)
-        usleep(50000);  // 0.05 segundos (eta ez 0.2)
+        // Pausa txiki bat simulazioa ikusteko
+        usleep(200000);  // 0.2 segundo
     }
     
-    printf(" [SCHEDULER] %d tick-etan bukatu da\n", scheduler_tick_count);
-    printf(" [SCHEDULER] Safety preemptions guztira: %d\n", safety_preemptions);
+    printf("\n[SCHEDULER] %d scheduler exekuzio bukatu dira\n", scheduler_tick_count);
+    printf("[SCHEDULER] Instrukzio guztira exekutatu: %d\n", total_instructions_executed);
+    printf("[SCHEDULER] Safety preemptions guztira: %d\n", safety_preemptions);
     
     return NULL;
 }
@@ -338,8 +488,10 @@ void analyze_processes(SchedulerParams* params) {
     int total_waiting = 0;
     int total_turnaround = 0;
     int process_count = 0;
+    int tick_based_count = 0;
+    int instruction_based_count = 0;
     
-    printf("\n=== PROZESUEN ANALISIA ===\n");
+    printf("\n=== PROZESUEN ANALISIA (TERMINATED prozesuak) ===\n");
     
     // Terminated prozesuak analizatu
     pcb_t* p = params->terminated_queue->head;
@@ -350,15 +502,38 @@ void analyze_processes(SchedulerParams* params) {
             total_turnaround += turnaround_time;
             process_count++;
             
-            printf("PID=%d: Exec=%d, Wait=%d, Turnaround=%d\n",
-                   p->pid, p->exec_time, p->waiting_time, turnaround_time);
+            // Kontatu prozesu motak
+            if (p->type == PROCESS_TICK_BASED) {
+                tick_based_count++;
+            } else {
+                instruction_based_count++;
+            }
+            
+            printf("PID=%d: %s, Exec=%d, Wait=%d, Turnaround=%d, Exit=%d\n",
+                   p->pid, get_process_type_name(p->type),
+                   p->exec_time, p->waiting_time, turnaround_time, p->exit_code);
         }
         p = p->next;
     }
     
     if (process_count > 0) {
-        printf("\nBATEZ BESTEKOAK:\n");
-        printf("• Waiting Time: %.2f tick\n", (float)total_waiting / process_count);
-        printf("• Turnaround Time: %.2f tick\n", (float)total_turnaround / process_count);
+        printf("\n=== ANALISI OROKORRA ===\n");
+        printf("• Prozesu totalak: %d (TICK: %d, INSTRUKZIO: %d)\n", 
+               process_count, tick_based_count, instruction_based_count);
+        
+        printf("\n• BATEZ BESTEKOAK:\n");
+        printf("  - Waiting Time: %.2f tick\n", (float)total_waiting / process_count);
+        printf("  - Turnaround Time: %.2f tick\n", (float)total_turnaround / process_count);
+        
+        // Bukaera tasa
+        int total_active = process_count + queue_count(params->ready_queue) + 
+                          queue_count(params->blocked_queue);
+        if (total_active > 0) {
+            float completion_rate = (process_count * 100.0) / total_active;
+            printf("  - Bukaera tasa: %.1f%% (%d/%d)\n", 
+                   completion_rate, process_count, total_active);
+        }
+    } else {
+        printf("Ez dago terminated prozesurik analisirako.\n");
     }
 }

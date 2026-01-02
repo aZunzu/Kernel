@@ -1,14 +1,8 @@
 #ifndef CPU_H
 #define CPU_H
 
-#include "pcb.h"
+#include "hardware.h"
 #include <pthread.h>
-
-/* Hardware thread */
-typedef struct {
-    int id;
-    pcb_t* current_process;
-} hw_thread_t;
 
 /* Core */
 typedef struct {
@@ -33,5 +27,6 @@ typedef struct {
 
 /* CPU sistema hasieratzen du */
 void cpu_system_init(cpu_system_t* sys);
-
+/* CPU sistema askatzen du */
+void cpu_system_destroy(cpu_system_t* sys);
 #endif

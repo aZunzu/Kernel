@@ -7,7 +7,6 @@ void* timer_thread(void* arg) {
     TimerParams* params = (TimerParams*)arg;
     SharedData* shared = params->shared;
     int ticks_nahi = params->ticks_nahi;
-    int id = params->id;
     char* izena = params->izena;
     int activate_scheduler = params->activate_scheduler;
     

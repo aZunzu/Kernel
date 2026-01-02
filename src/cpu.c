@@ -22,7 +22,7 @@ void cpu_system_init(cpu_system_t* sys) {
                 malloc(sizeof(hw_thread_t) * sys->hw_thread_kop);
 
             for (int h = 0; h < sys->hw_thread_kop; h++) {
-                sys->cpus[c].cores[i].hw_threads[h].id = h;
+                hw_thread_init(&sys->cpus[c].cores[i].hw_threads[h], h);
                 sys->cpus[c].cores[i].hw_threads[h].current_process = NULL;
             }
         }
