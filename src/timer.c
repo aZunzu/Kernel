@@ -9,6 +9,7 @@ void* timer_thread(void* arg) {
     int ticks_nahi = params->ticks_nahi;
     int id = params->id;
     char* izena = params->izena;
+    int activate_scheduler = params->activate_scheduler;
     
     double maiztasuna = (double)CLOCK_HZ / ticks_nahi;
     
@@ -34,10 +35,12 @@ void* timer_thread(void* arg) {
                    izena, zikloak/ticks_nahi, maiztasuna);
             tick_jaso = 0;
             
-            
-            // Timer-ak scheduler-i jakinarazten dio bere lana egin dezan
-            shared->scheduler_signal = 1;  // Seinalea piztu
-            printf("   [%s] seinalea bidaltzen...\n", izena);
+            // Timer-ak scheduler-i jakinarazten dio bere lana egin dezan (baldin eta konfiguratu bada)
+            if (activate_scheduler) {
+                shared->scheduler_signal = 1;  // Seinalea piztu
+                pthread_cond_broadcast(&shared->cond_scheduler);  // Scheduler-i jakinarazi
+                printf("   [%s] Scheduler-i seinalea bidaltzen...\n", izena);
+            }
         }
         
         // Process Generator-ri jakinarazi (hau mantentzen da)

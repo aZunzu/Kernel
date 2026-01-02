@@ -6,13 +6,14 @@
 /* Partekatutako datuen egitura */
 typedef struct {
     pthread_mutex_t mutex;
-    pthread_cond_t cond;     // Clock -> Timer sinkronizaziorako
-    pthread_cond_t cond2;    // Scheduler-erako (orain Timer-ek erabiltzen dute)
+    pthread_cond_t cond;           // Clock -> Process Generator
+    pthread_cond_t cond2;          // Clock -> Timer
+    pthread_cond_t cond_scheduler; // Timer -> Scheduler
     int done;
     int tenp_kop;
     int sim_running;
     int sim_tick;
-    int scheduler_signal;    //  Timer-ak Scheduler-i jakinarazteko
+    int scheduler_signal;    // Timer-ak Scheduler-i jakinarazteko
 } SharedData;
 
 /* Clock-aren parametroak */
@@ -27,6 +28,7 @@ typedef struct {
     int ticks_nahi;
     int id;
     char* izena;
+    int activate_scheduler;  // 1 = scheduler aktibatu, 0 = ez aktibatu
 } TimerParams;
 
 /* Clock eta Timer hari funtzioak */

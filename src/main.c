@@ -46,6 +46,7 @@ void option_1_synchronization() {
         .mutex = PTHREAD_MUTEX_INITIALIZER,
         .cond = PTHREAD_COND_INITIALIZER,
         .cond2 = PTHREAD_COND_INITIALIZER,
+        .cond_scheduler = PTHREAD_COND_INITIALIZER,
         .done = 0,
         .tenp_kop = TENP_KOP,
         .sim_running = 1,
@@ -69,17 +70,20 @@ void option_1_synchronization() {
     timer_params[0].shared = &shared;
     timer_params[0].ticks_nahi = TIMER1_TICKS;
     timer_params[0].id = 1;
-    timer_params[0].izena = "TIMER RAPIDOA";
+    timer_params[0].izena = "TIMER AZKARRA";
+    timer_params[0].activate_scheduler = 0;  // Ez aktibatu scheduler
     
     timer_params[1].shared = &shared;
     timer_params[1].ticks_nahi = TIMER2_TICKS;
     timer_params[1].id = 2;
     timer_params[1].izena = "TIMER ERDIA";
+    timer_params[1].activate_scheduler = 0;  // Ez aktibatu scheduler
     
     timer_params[2].shared = &shared;
     timer_params[2].ticks_nahi = TIMER3_TICKS;
     timer_params[2].id = 3;
     timer_params[2].izena = "TIMER MANTSOA";
+    timer_params[2].activate_scheduler = 0;  // Ez aktibatu scheduler
     
     // Timer guztiak sortu
     for (int i = 0; i < TENP_KOP; i++) {
@@ -185,6 +189,7 @@ void option_2_didactic_menu() {
     pthread_mutex_init(&shared.mutex, NULL);
     pthread_cond_init(&shared.cond, NULL);
     pthread_cond_init(&shared.cond2, NULL);
+    pthread_cond_init(&shared.cond_scheduler, NULL);
     shared.done = 0;
     shared.tenp_kop = 0;
     shared.sim_running = 1;
@@ -266,7 +271,7 @@ void option_2_didactic_menu() {
                 // Orain Timer bat simulatzen dugu, eta Timer horrek aktibatzen du Scheduler-a
                 pthread_mutex_lock(&shared.mutex);
                 shared.scheduler_signal = 1;  // Timer-ak seinalea piztu
-                pthread_cond_signal(&shared.cond2);  // Scheduler-i jakinarazi
+                pthread_cond_signal(&shared.cond_scheduler);  // Scheduler-i jakinarazi
                 pthread_mutex_unlock(&shared.mutex);
                 
                 // Itxaron scheduler-aren irteera ikusteko
@@ -352,6 +357,7 @@ void option_2_didactic_menu() {
     shared.sim_running = 0;
     pthread_mutex_lock(&shared.mutex);
     pthread_cond_signal(&shared.cond2);
+    pthread_cond_broadcast(&shared.cond_scheduler);  // Scheduler-a esnatu
     pthread_mutex_unlock(&shared.mutex);
     
     printf("\nScheduler hariaren amaiera itxaroten...\n");
@@ -377,7 +383,7 @@ void option_3_automatic_simulation() {
     
     printf("Sistemaren konfigurazioa:\n");
     printf("- Clock: %.1f Hz\n", CLOCK_HZ);
-    printf("- Timerrak: %d\n", TENP_KOP);
+    printf("- Timerrak: %d (1 scheduler, 2 bestelakoak)\n", TENP_KOP);
     printf("- Politika: Ruleta Aurreratua\n");
     printf("- CPU: %d, Core: %d, HW Thread: %d\n", 
            CPU_KOP, CORE_KOP, HW_THREAD_KOP);
@@ -388,8 +394,9 @@ void option_3_automatic_simulation() {
     pthread_mutex_init(&shared.mutex, NULL);
     pthread_cond_init(&shared.cond, NULL);
     pthread_cond_init(&shared.cond2, NULL);
+    pthread_cond_init(&shared.cond_scheduler, NULL);
     shared.done = 0;
-    shared.tenp_kop = 0;
+    shared.tenp_kop = 1;  // 1 timer scheduler-entzat
     shared.sim_running = 1;
     shared.sim_tick = 0;
     shared.scheduler_signal = 0;
@@ -413,7 +420,22 @@ void option_3_automatic_simulation() {
                p->pid, p->priority, p->exec_time);
     }
     
-    // 3. KONFIGURATU SCHEDULER
+    // 3. CLOCK SORTU (tick-ak sortzeko)
+    ClockParams clock_params = {&shared, CLOCK_HZ};
+    pthread_t clock_tid;
+    pthread_create(&clock_tid, NULL, clock_thread, &clock_params);
+    usleep(100000);  // Clock-ak hasieratu arte
+    
+    // 4. PROCESS GENERATOR SORTU
+    ProcessGenParams gen_params = {
+        .shared = &shared,
+        .ready_queue = &ready_q,
+        .probability = 30  // 30% probabilitate sortu prozesu bakoitzean
+    };
+    pthread_t gen_thread;
+    pthread_create(&gen_thread, NULL, process_generator, &gen_params);
+    
+    // 5. KONFIGURATU SCHEDULER
     SchedulerParams sched_params = {
         .shared = &shared,
         .ready_queue = &ready_q,
@@ -426,20 +448,30 @@ void option_3_automatic_simulation() {
     pthread_t sched_thread;
     pthread_create(&sched_thread, NULL, scheduler, &sched_params);
     
+    // 6. TIMER REAL BAT SORTU SCHEDULER-ENTZAT
+    TimerParams timer_params;
+    timer_params.shared = &shared;
+    timer_params.ticks_nahi = 1;  // Scheduler-a TICK BAKOITZEAN aktibatu
+    timer_params.id = 1;
+    timer_params.izena = "SCHEDULER TIMER";
+    timer_params.activate_scheduler = 1;  // BAI, scheduler aktibatu
+    
+    pthread_t timer_thread_id;
+    pthread_create(&timer_thread_id, NULL, timer_thread, &timer_params);
+    
     // Scheduler hasieratu arte itxaron
     usleep(500000);
     
     printf("\n╔══════════════════════════════════════════╗\n");
     printf("║      SIMULAZIOA MARTXAN                  ║\n");
     printf("╠══════════════════════════════════════════╣\n");
-    printf("║ Iraupena: 15 tick                        ║\n");
-    printf("║ Scheduler-a Timer-ek aktibatzen dute     ║\n");
+    printf("║ Iraupena: 30 tick                        ║\n");
+    printf("║ Scheduler-a: Timer real batek aktibatzen ║\n");
+    printf("║ Timer periodoa: %d tick                  ║\n", timer_params.ticks_nahi);
     printf("╚══════════════════════════════════════════╝\n\n");
     
-    // 4. SIMULAZIO BEGIZTA NAGUSIA - TIMER SIMULATUA
-    int tick_max = 50;
-    int timer_counter = 0;
-    int timer_period = 2;  // Scheduler-a 2 tick-ero aktibatu
+    // 7. SIMULAZIO BEGIZTA NAGUSIA
+    int tick_max = 30;
     
     for (int tick = 1; tick <= tick_max && shared.sim_running; tick++) {
         shared.sim_tick = tick;
@@ -449,32 +481,11 @@ void option_3_automatic_simulation() {
         printf(" TICK #%d - AUTOMATIKOA\n", tick);
         printf("══════════════════════════════════════════════\n");
         
-        // **HONDAKO ALDAKETA: TIMER SIMULATUA**
-        timer_counter++;
-        if (timer_counter >= timer_period) {
-            printf("[TIMER SIMULATUA] Scheduler-a aktibatzen...\n");
-            
-            // Timer-ak scheduler-i seinalea bidaltzen du
-            pthread_mutex_lock(&shared.mutex);
-            shared.scheduler_signal = 1;
-            pthread_cond_signal(&shared.cond2);
-            pthread_mutex_unlock(&shared.mutex);
-            
-            timer_counter = 0;
-            
-            // Itxaron scheduler-aren erantzuna ikusteko
-            usleep(500000);
-        }
+    
         
         // EKINTZA ALEATORIOAK SIMULATU
-        // 1. Prozesu berria sortu (30% probabilitatea)
-        if (rand() % 100 < 30) {
-            pcb_t* p = pcb_create(100 + tick, rand() % 2);
-            p->state = READY;
-            p->exec_time = 3 + rand() % 10;
-            queue_push(&ready_q, p);
-            printf("\n[EKINTZA]  Prozesu berria: PID=%d (Exec=%d)\n", p->pid, p->exec_time);
-        }
+        // 1. Prozesu berria sortu -> AHORA usa process_generator (via timer)
+        // Los procesos se crean a través del process_generator cuando el timer señaliza
         
         // 2. I/O eskaera (20% probabilitatea)
         if (rand() % 100 < 20) {
@@ -533,11 +544,11 @@ void option_3_automatic_simulation() {
                queue_count(&blocked_q),
                queue_count(&terminated_q));
         
-        // Pausa txiki bat
-        usleep(300000);
+        // Sincronizatu Clock-arekin
+        usleep(450000);  // 0.45 <= 0.5
     }
     
-    // 5. SIMULAZIOA AMAITU
+    // 6. SIMULAZIOA AMAITU
     printf("\n══════════════════════════════════════════════\n");
     printf(" SIMULAZIOA AMAITUTA\n");
     printf("══════════════════════════════════════════════\n\n");
@@ -558,19 +569,22 @@ void option_3_automatic_simulation() {
                (queue_count(&terminated_q) * 100.0) / total_procesos);
     }
     
-    // 6. GARBIKETA
+    // 7. GARBIKETA
     shared.sim_running = 0;
     shared.done = 1;
+    
+    // Timer eta scheduler esnatzea
     pthread_mutex_lock(&shared.mutex);
-    shared.scheduler_signal = 1;  // Scheduler-a esnatzea
+    shared.scheduler_signal = 1;
     pthread_cond_signal(&shared.cond2);
+    pthread_cond_broadcast(&shared.cond);
     pthread_mutex_unlock(&shared.mutex);
     
     pthread_join(sched_thread, NULL);
+    pthread_join(timer_thread_id, NULL);
     
     printf("\n Simulazio automatikoa ondo amaituta.\n");
 }
-
 // =======================================================
 // 4. AUKERA: Sistemaren informazioa
 // =======================================================

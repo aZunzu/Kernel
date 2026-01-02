@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 #include "scheduler.h"
 #include "process_queue.h"
 #include "cpu.h"
@@ -77,14 +78,12 @@ void* scheduler(void* arg) {
     int scheduler_tick_count = 0;
     int safety_preemptions = 0;
     
-    while (!params->shared->done && params->shared->sim_running) {
+    while (params->shared->sim_running) {
         pthread_mutex_lock(&params->shared->mutex);
         
-        // **ALDAKETA HAU DA NAGUSIA**
-        // Scheduler-ak ez du Clock-aren cond2 itxaroten, baizik eta Timer-aren seinalea
-        // Timer-ak scheduler_signal = 1 egiten duenean bakarrik exekutatuko da
+        // Espera scheduler_signal del Timer
         while (params->shared->scheduler_signal == 0 && params->shared->sim_running) {
-            pthread_cond_wait(&params->shared->cond2, &params->shared->mutex);
+            pthread_cond_wait(&params->shared->cond_scheduler, &params->shared->mutex);
         }
         
         // Seinalea berrezarri hurrengorako
@@ -100,7 +99,9 @@ void* scheduler(void* arg) {
         
         scheduler_tick_count++;
         
-        printf("\n[SCHEDULER] Timer-ak aktibatu du (exekuzio %d)\n", scheduler_tick_count);
+        int current_tick = params->shared->sim_tick;
+        printf("\n[SCHEDULER] Timer-ak aktibatu du (Tick sistemakoa: %d, Exekuzio %d)\n", 
+               current_tick, scheduler_tick_count);
         
         // ===== 1. WAITING TIME EGUNERATU =====
         for (pcb_t* p = params->ready_queue->head; p; p = p->next) {
@@ -263,7 +264,9 @@ void* scheduler(void* arg) {
         
         // ===== 5. ESTATISTIKAK EGUNERATU (3 tickero) =====
         if (scheduler_tick_count % 3 == 0) {  // ALDATUTA: scheduler_tick_count erabilita
-            printf("\n   TICK %d - SISTEMA ESTATISTIKAK:\n", scheduler_tick_count);
+            int current_tick = params->shared->sim_tick;
+            printf("\n   TICK %d (Exekuzio %d) - SISTEMA ESTATISTIKAK:\n", 
+                   current_tick, scheduler_tick_count);
             
             // Kontatu prozesu mota bakoitzeko
             int running_count = 0;
@@ -317,8 +320,8 @@ void* scheduler(void* arg) {
         
         pthread_mutex_unlock(&cpu_sys->mutex);
         
-        // Labur bat itxaron simulazioa ikusteko
-        usleep(200000);  // 0.2 segundo
+        // Pausa minima (ez blokeatzen main loopa)
+        usleep(50000);  // 0.05 segundos (eta ez 0.2)
     }
     
     printf(" [SCHEDULER] %d tick-etan bukatu da\n", scheduler_tick_count);

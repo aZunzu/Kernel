@@ -7,6 +7,7 @@
 typedef struct {
     SharedData* shared;
     process_queue_t* ready_queue;
+    int probability;  // 0-100: probabilidade de sortu prozesu
 } ProcessGenParams;
 
 void* process_generator(void* arg);
