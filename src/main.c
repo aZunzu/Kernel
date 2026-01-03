@@ -22,6 +22,15 @@
 // MENU NAGUSIA - Koordinatzailerako funtzioak
 // =======================================================
 
+// Funtzio laguntzailea: prozesu motaren izena lortu
+static const char* get_process_type_name(process_type_t type) {
+    switch(type) {
+        case PROCESS_TICK_BASED: return "TICK bidezkoa";
+        case PROCESS_INSTRUCTION_BASED: return "INSTRUKZIO bidezkoa";
+        default: return "EZEZAGUNA";
+    }
+}
+
 void show_main_menu() {
     printf("\n╔══════════════════════════════════════════════╗\n");
     printf("║      KERNEL SIMULATZAILEA - 2025/2026       ║\n");
@@ -136,14 +145,7 @@ void option_1_synchronization() {
 // 2. AUKERA: Scheduler Menu Didaktikoa
 // =======================================================
 
-// Funtzio laguntzaileak inprimitzeko
-const char* get_process_type_name(process_type_t type) {
-    switch(type) {
-        case PROCESS_TICK_BASED: return "TICK bidezkoa";
-        case PROCESS_INSTRUCTION_BASED: return "INSTRUKZIO bidezkoa";
-        default: return "EZEZAGUNA";
-    }
-}
+// Función ya definida arriba como static
 
 void print_ready_queue_menu(process_queue_t* q) {
     printf("\n--- READY QUEUE (Prest dauden prozesuak) ---\n");
@@ -818,7 +820,7 @@ void option_5_memory_virtual_simulation() {
     
     TimerParams timer_params;
     timer_params.shared = &shared;
-    timer_params.ticks_nahi = 1;  // Tick bakoitzean scheduler aktibatu
+    timer_params.ticks_nahi = 2;  // 2 tick-etan behin scheduler aktibatu
     timer_params.id = 1;
     timer_params.izena = "MEMORIA TIMER";
     timer_params.activate_scheduler = 1;
@@ -834,7 +836,7 @@ void option_5_memory_virtual_simulation() {
     printf("║ Prozesu motak: TICK + INSTRUKZIO bidezkoak  ║\n");
     printf("║ Prozesu kopurua: 3 (1 TICK, 2 INSTRUKZIO)   ║\n");
     printf("║ Memoria: %u frame libre                   ║\n", phys_mem.free_frames);
-    printf("║ Scheduler periodoa: 1 tick                 ║\n");
+    printf("║ Scheduler periodoa: 2 tick                 ║\n");
     printf("╚══════════════════════════════════════════════╝\n\n");
     
     // 10. SIMULAZIO BEGIZTA
@@ -844,10 +846,12 @@ void option_5_memory_virtual_simulation() {
         shared.sim_tick = tick;
         
         printf("\n══════════════════════════════════════════════\n");
-        printf(" TICK #%d - MEMORIA BIRTUALA (INSTRUKZIO bidezkoak)\n", tick);
+        printf(" TICK #%d - MEMORIA BIRTUALA\n", tick);
         printf("══════════════════════════════════════════════\n");
         
         // EKINTZA ALEATORIOAK (I/O simulatua)
+        int io_actions = 0;
+        
         if (rand() % 100 < 15) {
             int found = 0;
             for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -859,18 +863,17 @@ void option_5_memory_virtual_simulation() {
                             hw->current_process = NULL;
                             p->state = BLOCKED;
                             queue_push(&blocked_q, p);
-                            printf("\n[EKINTZA] I/O eskaera: PID=%d (%s) → BLOCKED\n", 
+                            printf("[EKINTZA] I/O eskaera: PID=%d (%s) → BLOCKED\n", 
                                    p->pid, get_process_type_name(p->type));
                             found = 1;
+                            io_actions++;
                             goto mem_io_done;
                         }
                     }
                 }
             }
             mem_io_done:
-            if (!found && tick > 5) {
-                printf("\n[EKINTZA] Ez dago RUNNING prozesurik\n");
-            }
+            (void)found;
         }
         
         if (rand() % 100 < 25 && blocked_q.head) {
@@ -878,31 +881,47 @@ void option_5_memory_virtual_simulation() {
             if (p) {
                 p->state = READY;
                 queue_push(&ready_q, p);
-                printf("\n[EKINTZA] I/O amaiera: PID=%d (%s) → READY\n", 
+                printf("[EKINTZA] I/O amaiera: PID=%d (%s) → READY\n", 
                        p->pid, get_process_type_name(p->type));
+                io_actions++;
             }
         }
         
-        // EGOERA LABURRA
-        printf("\n[EGOERA LABURRA]\n");
+        if (io_actions == 0) {
+            printf("[EKINTZA] Ekintza berezirik ez tick honetan\n");
+        }
+        
+        // EGOERA OROKORRA (tick bakoitzean)
+        printf("\n[EGOERA OROKORRA]\n");
         
         int running_count = 0;
         int tick_running = 0;
         int instruction_running = 0;
         
+        // Prozesu RUNNING-ak kontatu eta erakutsi
         for (int c = 0; c < cpu_sys.cpu_kop; c++) {
             for (int i = 0; i < cpu_sys.core_kop; i++) {
                 for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
                     pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
                     if (p) {
                         running_count++;
-                        if (p->type == PROCESS_TICK_BASED) tick_running++;
-                        else instruction_running++;
+                        if (p->type == PROCESS_TICK_BASED) {
+                            tick_running++;
+                            int progress = (p->time_in_cpu * 100) / p->exec_time;
+                            printf("  • PID=%d (TICK): HW %d-%d-%d | %d/%d TICK (%d%%)\n",
+                                   p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress);
+                        } else {
+                            instruction_running++;
+                            int progress = (p->time_in_cpu * 100) / p->exec_time;
+                            printf("  • PID=%d (INSTR): HW %d-%d-%d | %d/%d instrukzio (%d%%) | PC=0x%06X\n",
+                                   p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress, p->pc);
+                        }
                     }
                 }
             }
         }
         
+        printf("\n[LABURPENA]\n");
         printf("  RUNNING: %d (TICK:%d, INSTR:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
                running_count, tick_running, instruction_running,
                queue_count(&ready_q),
@@ -910,7 +929,7 @@ void option_5_memory_virtual_simulation() {
                queue_count(&terminated_q));
         
         if (tick % 5 == 0 && phys_mem.data != NULL) {
-            printf("  Memoria: %u frame libre (%u KB)\n",
+            printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
                    phys_mem.free_frames, 
                    phys_mem.free_frames * PAGE_SIZE / 1024);
         }

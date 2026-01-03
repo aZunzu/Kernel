@@ -134,8 +134,15 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
             entry->dirty = 0;
         }
         
-        // Kodea idatzi memorian
-        uint32_t paddr = translate_address(pcb->mm_info->page_table, vaddr, 0);
+        // Kodea idatzi memorian (force_write=1 kargatzeko)
+        uint32_t paddr = translate_address_force(pcb->mm_info->page_table, vaddr, 1, 1);
+        if (paddr == 0) {
+            fprintf(stderr, "[LOADER] Errorea: ezin izan da kodea kargatu\n");
+            destroy_page_table(pcb->mm_info->page_table);
+            free(pcb->mm_info);
+            free(pcb);
+            return NULL;
+        }
         uint32_t* mem_loc = (uint32_t*)(phys_mem.data + paddr);
         *mem_loc = prog->code[i];
     }
@@ -166,8 +173,15 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
             entry->dirty = 0;
         }
         
-        // Datuak idatzi memorian
-        uint32_t paddr = translate_address(pcb->mm_info->page_table, vaddr, 1);
+        // Datuak idatzi memorian (force_write=1 kargatzeko)
+        uint32_t paddr = translate_address_force(pcb->mm_info->page_table, vaddr, 1, 1);
+        if (paddr == 0) {
+            fprintf(stderr, "[LOADER] Errorea: ezin izan da datuak kargatu\n");
+            destroy_page_table(pcb->mm_info->page_table);
+            free(pcb->mm_info);
+            free(pcb);
+            return NULL;
+        }
         uint32_t* mem_loc = (uint32_t*)(phys_mem.data + paddr);
         *mem_loc = prog->data[i];
     }

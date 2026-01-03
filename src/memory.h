@@ -44,6 +44,7 @@ void free_frame(void* frame_address);
 page_table_t* create_page_table();
 void destroy_page_table(page_table_t* pt);
 uint32_t translate_address(page_table_t* pt, uint32_t virtual_addr, int write);
+uint32_t translate_address_force(page_table_t* pt, uint32_t virtual_addr, int write, int force_write);
 
 /* Memoria fisiko globala */
 extern physical_memory_t phys_mem;

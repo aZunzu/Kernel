@@ -120,3 +120,34 @@ uint32_t translate_address(page_table_t* pt, uint32_t virtual_addr, int write) {
     uint32_t physical_addr = (entry->frame_number << PAGE_SIZE_BITS) | offset;
     return physical_addr;
 }
+
+/* Helbide birtuala helbide fisiko bihurtu (baimena inposatu) */
+uint32_t translate_address_force(page_table_t* pt, uint32_t virtual_addr, int write, int force_write) {
+    uint32_t page_num = virtual_addr >> PAGE_SIZE_BITS;
+    uint32_t offset = virtual_addr & (PAGE_SIZE - 1);
+    
+    if (page_num >= pt->num_entries) {
+        fprintf(stderr, "[MEMORY] Errorea: orri zenbakia handiegia: %u\n", page_num);
+        return 0;
+    }
+    
+    pte_t* entry = &pt->entries[page_num];
+    
+    if (!entry->present) {
+        fprintf(stderr, "[MEMORY] Errorea: orria ez dago memorian: %u\n", page_num);
+        return 0;
+    }
+    
+    // force_write aktibo bada, ez egiaztatu baimenik
+    if (write && !force_write && !entry->write) {
+        fprintf(stderr, "[MEMORY] Errorea: idazteko baimenik ez orrian: %u\n", page_num);
+        return 0;
+    }
+    
+    // Accessed eta dirty bit-ak eguneratu
+    entry->accessed = 1;
+    if (write) entry->dirty = 1;
+    
+    uint32_t physical_addr = (entry->frame_number << PAGE_SIZE_BITS) | offset;
+    return physical_addr;
+}
