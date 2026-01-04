@@ -22,6 +22,7 @@ void* clock_thread(void* arg) {
         
         usleep(periodoa * 1000000);
         tick++;
+        shared->sim_tick = tick;  // keep global tick in sync for display/logic
         shared->done = 0;
         
         if (tick % 5 == 0) {

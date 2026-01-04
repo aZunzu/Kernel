@@ -674,122 +674,77 @@ void option_5_memory_virtual_simulation() {
     physical_memory_init();
     
     // 2. Programa fitxategiak sortu (simulazioa)
-    printf("2. Programa fitxategiak sortzen (simulazioa)...\n");
-    printf("   Oharra: Benetako prometheus.c erabiliz programa errealak sortu\n");
-    printf("   Adibidez: ./prometheus -s 0 -nprog -f0 -l5 -p3\n\n");
+    // Programak kargatu elf karpetatik
+    const char* elf_files[] = {
+        "elf/prog000.elf",
+        "elf/prog001.elf", 
+        "elf/prog002.elf",
+        "elf/prog003.elf",
+        "elf/prog004.elf"
+    };
     
-    printf("   Prog000.elf fitxategiaren edukia (simulatua):\n");
-    printf("   .text 000000\n");
-    printf("   .data 000020\n");
-    printf("   0F000000  // ld R15, [0x000000]\n");
-    printf("   01000004  // ld R1, [0x000004]\n");
-    printf("   22010000  // add R2, R1, R0\n");
-    printf("   12000008  // st R2, [0x000008]\n");
-    printf("   F0000000  // exit\n");
-    printf("   0000000A  // data: 10\n");
-    printf("   00000014  // data: 20\n");
-    printf("   00000000  // data: 0 (result gordetzeko)\n");
+    program_t* programs[5];
+    int total_instructions = 0;
     
-    printf("\nFAZE 2: Programen exekuzioa\n");
-    printf("----------------------------\n");
-    
-    // 3. Programa bat kargatu (simulatuta)
-    printf("3. Programa bat kargatzen (simulatuta)...\n");
-    
-    // Simulatu programa bat
-    program_t* prog = (program_t*)malloc(sizeof(program_t));
-    prog->code_start = 0x000000;
-    prog->data_start = 0x000020;
-    prog->code_size = 5;  // 4 instrukzio + exit
-    prog->data_size = 3;  // 3 datu hitz
-    
-    // Kodea (simulatua)
-    prog->code = (uint32_t*)malloc(prog->code_size * sizeof(uint32_t));
-    prog->code[0] = 0x0F000000;  // ld R15, [0x000000]
-    prog->code[1] = 0x01000004;  // ld R1, [0x000004]
-    prog->code[2] = 0x22010000;  // add R2, R1, R0
-    prog->code[3] = 0x12000008;  // st R2, [0x000008]
-    prog->code[4] = 0xF0000000;  // exit
-    
-    // Datuak (simulatuta)
-    prog->data = (uint32_t*)malloc(prog->data_size * sizeof(uint32_t));
-    prog->data[0] = 0x0000000A;  // 10
-    prog->data[1] = 0x00000014;  // 20
-    prog->data[2] = 0x00000000;  // 0 (result)
-    
-    printf("   Programa kargatu: 5 instrukzio, 3 datu\n");
-    
-    // 4. Prozesua sortu programatik
-    printf("4. INSTRUKZIO bidezko prozesua sortzen programatik...\n");
-    pcb_t* process = create_process_from_program(1, 0, prog);
-    if (!process) {
-        printf("Errorea: ezin izan da prozesua sortu\n");
-        free(prog->code);
-        free(prog->data);
-        free(prog);
-        return;
+    for (int i = 0; i < 5; i++) {
+        programs[i] = load_program_from_file(elf_files[i]);
+        if (programs[i]) {
+            total_instructions += programs[i]->code_size;
+            printf("  - %s: %d instrukzio (0x%06X - 0x%06X)\n", 
+                   elf_files[i], programs[i]->code_size,
+                   programs[i]->code_start,
+                   programs[i]->code_start + (programs[i]->code_size * 4) - 1);
+        } else {
+            printf("  - ERROREA: Ezin izan da %s kargatu\n", elf_files[i]);
+            return;
+        }
     }
     
-    process->type = PROCESS_INSTRUCTION_BASED;
-    process->state = READY;
-    process->exec_time = 10;  // Max 10 instrukzio
+    printf("   Guztira: %d instrukzio\n", total_instructions);
     
-    printf("   Prozesua sortuta: PID=%d, Mota: %s, PC=0x%06X\n", 
-           process->pid, get_process_type_name(process->type), process->pc);
+    printf("\nFAZE 2: Prozesuak sortu\n");
+    printf("------------------------\n");
     
-    // 5. CPU sistema hasieratu
-    printf("5. CPU sistema hasieratzen (hardware berria)...\n");
+    // 3. CPU sistema hasieratu
+    printf("3. CPU eta hardware hasieratzen...\n");
     cpu_system_t cpu_sys;
     cpu_system_init(&cpu_sys);
     
-    // 6. Prozesu ilarak sortu
+    // Prozesuak gordetzeko ilarak sortu
     process_queue_t ready_q, blocked_q, terminated_q;
     queue_init(&ready_q);
     queue_init(&blocked_q);
     queue_init(&terminated_q);
     
-    queue_push(&ready_q, process);
+    // 5. 5 prozesu sortu (INSTRUCTION-BASED soilik)
+    printf("4. 5 prozesu ELF-etik sortzen...\n");
+    int processes_created = 0;
     
-    // 7. Beste prozesu batzuk sortu (hibridoa: TICK + INSTRUKZIO)
-    printf("6. Prozesu gehiago sortzen (sistema hibridoa)...\n");
-    
-    // TICK bidezko prozesu bat
-    pcb_t* tick_proc = pcb_create(2, 0);
-    tick_proc->type = PROCESS_TICK_BASED;
-    tick_proc->state = READY;
-    tick_proc->exec_time = 8;
-    queue_push(&ready_q, tick_proc);
-    printf("   PID=%d: TICK bidezko prozesua (Exec=%d TICK)\n", 
-           tick_proc->pid, tick_proc->exec_time);
-    
-    // INSTRUKZIO bidezko beste prozesu bat (programa berdinarekin, bere orri-taularekin)
-    pcb_t* instr_proc2 = create_process_from_program(3, 1, prog);
-    if (instr_proc2) {
-        instr_proc2->type = PROCESS_INSTRUCTION_BASED;
-        instr_proc2->state = READY;
-        instr_proc2->exec_time = 7;
-        instr_proc2->pc = prog->code_start;
-        queue_push(&ready_q, instr_proc2);
-        printf("   PID=%d: INSTRUKZIO bidezko prozesua (Prio=1, Instrukzio max=%d)\n", 
-               instr_proc2->pid, instr_proc2->exec_time);
-    } else {
-        printf("   PID=3 sortzean errorea (INSTRUKZIO)\n");
+    for (int i = 0; i < 5; i++) {
+        // Prozesuaren tamainaren arabera prioridad esleitu
+        // Prozesu laburrak (< 15 instr): garrantzitsua, scheduler-an gehiago hautatzeko aukera
+        // Prozesu luzeak: normala, ez urgentea
+        int priority = (programs[i]->code_size < 15) ? 1 : 0;
+        
+        pcb_t* proc = create_process_from_program(i + 1, priority, programs[i]);
+        if (proc) {
+            proc->type = PROCESS_INSTRUCTION_BASED;
+            proc->state = READY;
+            proc->exec_time = programs[i]->code_size;
+            proc->pc = programs[i]->code_start;
+            queue_push(&ready_q, proc);
+            processes_created++;
+            const char* prio_text = (priority == 1) ? "GARRANTZITSUA (x3)" : "NORMALA (x1)";
+            printf("   PID=%d: %d instrukzio, Prioridad: %s\n", proc->pid, proc->exec_time, prio_text);
+        } else {
+            printf("   ERROREA: PID=%d ezin izan da sortu\n", i + 1);
+        }
     }
     
-    printf("\nFAZE 3: Exekuzioa\n");
+    printf("\nFAZE 3: Simulazioa\n");
     printf("------------------\n");
-
-    // Debug helbideak: data segmentua hasieran
-    uint32_t dbg_data_vstart = prog->data_start;
-    uint32_t dbg_data_vend = prog->data_start + (prog->data_size * sizeof(uint32_t)) - 1;
-    uint32_t dbg_data_pstart = translate_address(process->mm_info->page_table, dbg_data_vstart, 0);
-    uint32_t dbg_data_pend = translate_address(process->mm_info->page_table, dbg_data_vend, 0);
-    if (dbg_data_pstart && dbg_data_pend) {
-        printf("\n[DEBUG] Data segmentua (fisikoa) HASIERA:\n");
-        print_memory_range(dbg_data_pstart, dbg_data_pend);
-    }
     
-    // 8. Scheduler konfiguratu
+    // Scheduler eta sinkronizazioa ezarri
     SharedData shared;
     pthread_mutex_init(&shared.mutex, NULL);
     pthread_cond_init(&shared.cond, NULL);
@@ -813,14 +768,14 @@ void option_5_memory_virtual_simulation() {
     pthread_t sched_thread;
     pthread_create(&sched_thread, NULL, scheduler, &sched_params);
     
-    // 9. Clock eta Timer sortu
+    // 7. Clock eta Timer sortu
     ClockParams clock_params = {&shared, CLOCK_HZ};
     pthread_t clock_tid;
     pthread_create(&clock_tid, NULL, clock_thread, &clock_params);
     
     TimerParams timer_params;
     timer_params.shared = &shared;
-    timer_params.ticks_nahi = 2;  // 2 tick-etan behin scheduler aktibatu
+    timer_params.ticks_nahi = 2;  // Scheduler 2 tick-eko aktibatzen da - execution tick bakoitzean
     timer_params.id = 1;
     timer_params.izena = "MEMORIA TIMER";
     timer_params.activate_scheduler = 1;
@@ -828,89 +783,92 @@ void option_5_memory_virtual_simulation() {
     pthread_t timer_thread_id;
     pthread_create(&timer_thread_id, NULL, timer_thread, &timer_params);
     
-    usleep(500000);
+    usleep(50000);
     
     printf("\n╔══════════════════════════════════════════════╗\n");
     printf("║      MEMORIA BIRTUALAREN SIMULAZIOA         ║\n");
     printf("╠══════════════════════════════════════════════╣\n");
-    printf("║ Prozesu motak: TICK + INSTRUKZIO bidezkoak  ║\n");
-    printf("║ Prozesu kopurua: 3 (1 TICK, 2 INSTRUKZIO)   ║\n");
-    printf("║ Memoria: %u frame libre                   ║\n", phys_mem.free_frames);
+    printf("║ [SCHEDULER] Hasieratuta                      ║\n");
+    printf("║ Prozesu motak: INSTRUKZIO bidezkoak soilak  ║\n");
+    printf("║ Prozesu kopurua: %d                         ║\n", processes_created);
+    printf("║ [MEMORY] Frame libre: %u                    ║\n", phys_mem.free_frames);
     printf("║ Scheduler periodoa: 2 tick                 ║\n");
+    printf("║ Execution: TICK bakoitzean                  ║\n");
     printf("╚══════════════════════════════════════════════╝\n\n");
     
-    // 10. SIMULAZIO BEGIZTA
-    int tick_max = 25;
+    // HW thread-ak exekutatzen dira tick bakoitzean, scheduler asignatzen du 2 tick-eko
+    int tick_max = 300;
+    int last_shown_tick = 0;
+    int last_executed_tick = -1;
     
-    for (int tick = 1; tick <= tick_max && shared.sim_running; tick++) {
-        shared.sim_tick = tick;
+    while (shared.sim_running && shared.sim_tick < tick_max) {
+        int current_tick = shared.sim_tick;
         
-        printf("\n══════════════════════════════════════════════\n");
-        printf(" TICK #%d - MEMORIA BIRTUALA\n", tick);
-        printf("══════════════════════════════════════════════\n");
+        // Itxaron tick berri bat egon arte (clock thread-ak eguneratzen du)
+        if (current_tick == last_executed_tick) {
+            usleep(5000);  // 5ms itxaron
+            continue;
+        }
         
-        // EKINTZA ALEATORIOAK (I/O simulatua)
-        int io_actions = 0;
+        last_executed_tick = current_tick;
         
-        if (rand() % 100 < 15) {
-            int found = 0;
-            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
-                for (int i = 0; i < cpu_sys.core_kop; i++) {
-                    for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
-                        hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
-                        if (hw->current_process) {
-                            pcb_t* p = hw->current_process;
+        // === EXEKUZIO: HW thread-ek instrukzioak exekutatzen dituzte ===
+        pthread_mutex_lock(&cpu_sys.mutex);
+        
+        for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+            for (int i = 0; i < cpu_sys.core_kop; i++) {
+                for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                    hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
+                    pcb_t* p = hw->current_process;
+                    
+                    if (p && p->state == RUNNING && p->type == PROCESS_INSTRUCTION_BASED) {
+                        // Instrukzio bat exekutatu
+                        int result = execute_step(hw, p);
+                        
+                        if (result > 0) {
+                            p->time_in_cpu++;
+                            // Scheduler-ak egiaztatu instrukzioak bukaturik dauden
+                        } else if (result == 0) {
+                            // EXIT agindua - HW thread askatu eta ilaran jarri scheduler-entzat
+                            p->time_in_cpu++;
                             hw->current_process = NULL;
-                            p->state = BLOCKED;
-                            queue_push(&blocked_q, p);
-                            printf("[EKINTZA] I/O eskaera: PID=%d (%s) → BLOCKED\n", 
-                                   p->pid, get_process_type_name(p->type));
-                            found = 1;
-                            io_actions++;
-                            goto mem_io_done;
+                            queue_push(&terminated_q, p);  // Scheduler-ak egiaztatu eta TERMINATED jarriko du
+                            mmu_flush_tlb(&hw->mmu);
+                        } else if (result < 0) {
+                            // Errorea - markar exit code eta ilaran jarri
+                            p->exit_code = -1;
+                            hw->current_process = NULL;
+                            queue_push(&terminated_q, p);  // Scheduler-ak TERMINATED jarriko du
+                            mmu_flush_tlb(&hw->mmu);
                         }
                     }
                 }
             }
-            mem_io_done:
-            (void)found;
         }
         
-        if (rand() % 100 < 25 && blocked_q.head) {
-            pcb_t* p = queue_pop(&blocked_q);
-            if (p) {
-                p->state = READY;
-                queue_push(&ready_q, p);
-                printf("[EKINTZA] I/O amaiera: PID=%d (%s) → READY\n", 
-                       p->pid, get_process_type_name(p->type));
-                io_actions++;
-            }
-        }
+        pthread_mutex_unlock(&cpu_sys.mutex);
         
-        if (io_actions == 0) {
-            printf("[EKINTZA] Ekintza berezirik ez tick honetan\n");
-        }
+        // === ERAKUSTE FASEA ===
+        if (current_tick != last_shown_tick) {
+            last_shown_tick = current_tick;
         
-        // EGOERA OROKORRA (tick bakoitzean)
-        printf("\n[EGOERA OROKORRA]\n");
-        
-        int running_count = 0;
-        int tick_running = 0;
-        int instruction_running = 0;
-        
-        // Prozesu RUNNING-ak kontatu eta erakutsi
-        for (int c = 0; c < cpu_sys.cpu_kop; c++) {
-            for (int i = 0; i < cpu_sys.core_kop; i++) {
-                for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
-                    pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
-                    if (p) {
-                        running_count++;
-                        if (p->type == PROCESS_TICK_BASED) {
-                            tick_running++;
-                            int progress = (p->time_in_cpu * 100) / p->exec_time;
-                            printf("  • PID=%d (TICK): HW %d-%d-%d | %d/%d TICK (%d%%)\n",
-                                   p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress);
-                        } else {
+            printf("\n══════════════════════════════════════════════\n");
+            printf(" TICK #%d - MEMORIA BIRTUALA (INSTRUKZIO)\n", current_tick);
+            printf("══════════════════════════════════════════════\n");
+            
+            // EGOERA OROKORRA
+            printf("\n[EGOERA OROKORRA]\n");
+            
+            int running_count = 0;
+            int instruction_running = 0;
+            
+            // Prozesu RUNNING-ak kontatu eta erakutsi
+            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+                for (int i = 0; i < cpu_sys.core_kop; i++) {
+                    for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                        pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
+                        if (p) {
+                            running_count++;
                             instruction_running++;
                             int progress = (p->time_in_cpu * 100) / p->exec_time;
                             printf("  • PID=%d (INSTR): HW %d-%d-%d | %d/%d instrukzio (%d%%) | PC=0x%06X\n",
@@ -919,26 +877,27 @@ void option_5_memory_virtual_simulation() {
                     }
                 }
             }
+            
+            printf("\n[LABURPENA]\n");
+            printf("  RUNNING: %d (INSTR:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
+                   running_count, instruction_running,
+                   queue_count(&ready_q),
+                   queue_count(&blocked_q),
+                   queue_count(&terminated_q));
+            
+            if (phys_mem.data != NULL) {
+                printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
+                       phys_mem.free_frames, 
+                       phys_mem.free_frames * PAGE_SIZE / 1024);
+            }
         }
         
-        printf("\n[LABURPENA]\n");
-        printf("  RUNNING: %d (TICK:%d, INSTR:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
-               running_count, tick_running, instruction_running,
-               queue_count(&ready_q),
-               queue_count(&blocked_q),
-               queue_count(&terminated_q));
+        // Hariak exekutatu eta erlojua aurreratu ahal izateko pixka bat lo egin
+        usleep(10000);  // 10ms
         
-        if (tick % 5 == 0 && phys_mem.data != NULL) {
-            printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
-                   phys_mem.free_frames, 
-                   phys_mem.free_frames * PAGE_SIZE / 1024);
-        }
-        
-        usleep(350000);
-        
-        // Amaiera baldintzak
-        if (queue_count(&terminated_q) >= 2) {
-            printf("\n[OHARRA] 2 prozesu baino gehiago bukatu dira. Simulazioa amaitzen...\n");
+        // Amaiera baldintzak - 5 prozesu ELF guztiak bukatu arte
+        if (queue_count(&terminated_q) >= 5) {
+            printf("\n[OHARRA] Prozesu guztiak bukatu dira. Simulazioa amaitzen...\n");
             break;
         }
     }
@@ -974,14 +933,7 @@ void option_5_memory_virtual_simulation() {
         printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
                phys_mem.free_frames, 
                phys_mem.free_frames * PAGE_SIZE / 1024);
-    }
-    
-    // Debug: erakutsi data segmentua exekuzioa amaitu ondoren (fisikoki)
-    dbg_data_pstart = translate_address(process->mm_info->page_table, dbg_data_vstart, 0);
-    dbg_data_pend = translate_address(process->mm_info->page_table, dbg_data_vend, 0);
-    if (dbg_data_pstart && dbg_data_pend) {
-        printf("\n[DEBUG] Data segmentua (fisikoa) AMAIERA:\n");
-        print_memory_range(dbg_data_pstart, dbg_data_pend);
+        printf("  Orri-taula: 4096 sarrera\n");
     }
 
     // GARBIKETA
@@ -999,13 +951,15 @@ void option_5_memory_virtual_simulation() {
     pthread_join(timer_thread_id, NULL);
     pthread_join(clock_tid, NULL);
     
-    // Programa askatu
-    free(prog->code);
-    free(prog->data);
-    free(prog);
+    // Programak askatu
+    for (int i = 0; i < 5; i++) {
+        if (programs[i]) {
+            free_program(programs[i]);
+        }
+    }
     
     printf("\n INSTRUKZIO bidezko simulazioa ondo amaituta.\n");
-    printf(" 3. zatia (Memoria kudeaketa) osorik inplementatuta.\n");
+    printf(" 5 programa ELF exekutatu dira.\n");
 }
 
 // =======================================================

@@ -133,7 +133,7 @@ void* scheduler(void* arg) {
         
         pthread_mutex_lock(&cpu_sys->mutex);
         
-        // ===== 2. EXEKUTATZE FASE - HIBRIDOA =====
+        // Exekuzio fasea: HW thread-etan dauden prozesuak behatzen dira
         int completed_this_tick = 0;
         int instructions_this_tick = 0;
         int tick_based_procs = 0;
@@ -162,7 +162,7 @@ void* scheduler(void* arg) {
                         if (cur->type == PROCESS_TICK_BASED) {
                             tick_based_procs++;
                             
-                            // ===== PROZESU TICK BIDEZKOA (1-2 zatia) =====
+                            // TICK bidezko prozesua: denbora neurtzean aurreratzen da
                             cur->time_in_cpu++;
                             
                             // A) PROZESUA BUKATU (exec_time TICK-etatik)
@@ -199,7 +199,7 @@ void* scheduler(void* arg) {
                             }
                         }
                         
-                        // ===== PROZESU INSTRUKZIO BIDEZKOA (3. zatia) =====
+                        // INSTRUKZIO bidezko prozesua: main loop-ean exekutatzen da
                         else if (cur->type == PROCESS_INSTRUCTION_BASED) {
                             instruction_based_procs++;
                             
@@ -305,7 +305,7 @@ void* scheduler(void* arg) {
             printf("   %d prozesu bukatu\n", completed_this_tick);
         }
         
-        // ===== 3. ESLEIPEN FASE =====
+        // Esleipen fasea: hutsik dauden HW thread-etan prozesuak esleitu
         int dispatched_this_tick = 0;
         
         for (int c = 0; c < cpu_sys->cpu_kop; c++) {
@@ -324,7 +324,7 @@ void* scheduler(void* arg) {
                         hw->current_process = p;
                         dispatched_this_tick++;
                         
-                        // **KONFIGURAZIOA PROZESU MOTAREN ARABERA**
+                        // Konfiguratu prozesu motaren arabera (memoria birtuala vs denbora)
                         if (p->type == PROCESS_INSTRUCTION_BASED && p->mm_info) {
                             // INSTRUKZIO bidezko prozesua (memoria birtuala)
                             hw->mmu.ptbr = p->mm_info->ptbr;
@@ -359,7 +359,7 @@ void* scheduler(void* arg) {
             printf("   %d prozesu esleitu\n", dispatched_this_tick);
         }
         
-        // ===== 4. BLOCKED PROZESUAK KUDEATU (I/O) =====
+        // Blocked prozesuak kudeatu: I/O osoa simulatu (azpi probabilitatean)
         int io_completed = 0;
         pcb_t* prev = NULL;
         pcb_t* current = params->blocked_queue->head;
@@ -396,7 +396,7 @@ void* scheduler(void* arg) {
             }
         }
         
-        // ===== 5. ESTATISTIKAK EGUNERATU =====
+        // Estatistikak eguneratu: 4 tick bakoitzean erakutsi (biltzen da)
         if (scheduler_tick_count % 4 == 0) {
             int current_tick = params->shared->sim_tick;
             printf("\n   TICK %d (Scheduler exekuzio %d) - SISTEMA ESTATISTIKAK:\n", 
