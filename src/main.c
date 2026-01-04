@@ -858,42 +858,39 @@ void option_5_memory_virtual_simulation() {
             
             // EGOERA OROKORRA
             printf("\n[EGOERA OROKORRA]\n");
-            
-            int running_count = 0;
-            int instruction_running = 0;
-            
-            // Prozesu RUNNING-ak kontatu eta erakutsi
-            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
-                for (int i = 0; i < cpu_sys.core_kop; i++) {
-                    for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
-                        pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
-                        if (p) {
-                            running_count++;
-                            instruction_running++;
-                            int progress = (p->time_in_cpu * 100) / p->exec_time;
-                            printf("  • PID=%d (INSTR): HW %d-%d-%d | %d/%d instrukzio (%d%%) | PC=0x%06X\n",
-                                   p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress, p->pc);
-                        }
+        
+        int running_count = 0;
+        int instruction_running = 0;
+        
+        // Prozesu RUNNING-ak kontatu eta erakutsi
+        for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+            for (int i = 0; i < cpu_sys.core_kop; i++) {
+                for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                    pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
+                    if (p) {
+                        running_count++;
+                        instruction_running++;
+                        int progress = (p->time_in_cpu * 100) / p->exec_time;
+                        printf("  • PID=%d (INSTR): HW %d-%d-%d | %d/%d instrukzio (%d%%) | PC=0x%06X\n",
+                               p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress, p->pc);
                     }
                 }
             }
-            
-            printf("\n[LABURPENA]\n");
-            printf("  RUNNING: %d (INSTR:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
-                   running_count, instruction_running,
-                   queue_count(&ready_q),
-                   queue_count(&blocked_q),
-                   queue_count(&terminated_q));
-            
-            if (phys_mem.data != NULL) {
-                printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
-                       phys_mem.free_frames, 
-                       phys_mem.free_frames * PAGE_SIZE / 1024);
-            }
         }
         
-        // Hariak exekutatu eta erlojua aurreratu ahal izateko pixka bat lo egin
-        usleep(10000);  // 10ms
+        printf("\n[LABURPENA]\n");
+        printf("  RUNNING: %d (INSTR:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
+               running_count, instruction_running,
+               queue_count(&ready_q),
+               queue_count(&blocked_q),
+               queue_count(&terminated_q));
+        
+        if (phys_mem.data != NULL) {
+            printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
+                   phys_mem.free_frames, 
+                   phys_mem.free_frames * PAGE_SIZE / 1024);
+        }
+        }
         
         // Amaiera baldintzak - 5 prozesu ELF guztiak bukatu arte
         if (queue_count(&terminated_q) >= 5) {

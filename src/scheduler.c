@@ -202,82 +202,8 @@ void* scheduler(void* arg) {
                         // INSTRUKZIO bidezko prozesua: main loop-ean exekutatzen da
                         else if (cur->type == PROCESS_INSTRUCTION_BASED) {
                             instruction_based_procs++;
-                            
-                            // Instrukzio bat exekutatu
-                            int result = execute_step(hw, cur);
-                            
-                            if (result > 0) {
-                                cur->time_in_cpu++;  // Instrukzio bat gehiago
-                                instructions_this_tick++;
-                                total_instructions_executed++;
-                                
-                                // A) PROZESUA BUKATU (exit agindua)
-                                if (result == 0) {
-                                    printf("   PID=%d BUKATUTA (%s: EXIT agindua, %d instrukzio)\n", 
-                                           cur->pid, get_process_type_short(cur->type),
-                                           cur->time_in_cpu);
-                                    cur->state = TERMINATED;
-                                    queue_push(params->terminated_queue, cur);
-                                    hw->current_process = NULL;
-                                    completed_this_tick++;
-                                    
-                                    // TLB garbitu
-                                    mmu_flush_tlb(&hw->mmu);
-                                    continue;
-                                }
-                                
-                                // B) PROZESUA BUKATU (exec_time instrukzioetatik)
-                                if (cur->time_in_cpu >= cur->exec_time) {
-                                    printf("   PID=%d BUKATUTA (%s: instrukzio max, %d/%d)\n", 
-                                           cur->pid, get_process_type_short(cur->type),
-                                           cur->time_in_cpu, cur->exec_time);
-                                    cur->state = TERMINATED;
-                                    queue_push(params->terminated_queue, cur);
-                                    hw->current_process = NULL;
-                                    completed_this_tick++;
-                                    
-                                    // TLB garbitu
-                                    mmu_flush_tlb(&hw->mmu);
-                                    continue;
-                                }
-                                
-                                // C) SAFETY QUANTUM
-                                if (cur->time_in_cpu >= SAFETY_QUANTUM) {
-                                    printf("   PID=%d → READY (%s: safety quantum, %d instrukzio)\n", 
-                                           cur->pid, get_process_type_short(cur->type),
-                                           cur->time_in_cpu);
-                                    cur->state = READY;
-                                    queue_push(params->ready_queue, cur);
-                                    hw->current_process = NULL;
-                                    safety_preemptions++;
-                                    
-                                    // TLB garbitu
-                                    mmu_flush_tlb(&hw->mmu);
-                                    continue;
-                                }
-                                
-                                // D) PROGRESOA ERAKUTSI
-                                if (cur->time_in_cpu % 3 == 0) {
-                                    int progress = (cur->time_in_cpu * 100) / cur->exec_time;
-                                    if (progress < 100) {
-                                        printf("   PID=%d exekutatzen (%s): %d/%d instrukzio (%d%%)\n",
-                                               cur->pid, get_process_type_short(cur->type),
-                                               cur->time_in_cpu, cur->exec_time, progress);
-                                    }
-                                }
-                            } else if (result < 0) {
-                                // Errorea exekuzioan
-                                printf("   PID=%d ERROREA exekuzioan (%s)\n", 
-                                       cur->pid, get_process_type_short(cur->type));
-                                cur->state = TERMINATED;
-                                cur->exit_code = -1;
-                                queue_push(params->terminated_queue, cur);
-                                hw->current_process = NULL;
-                                completed_this_tick++;
-                                
-                                // TLB garbitu
-                                mmu_flush_tlb(&hw->mmu);
-                            }
+                            // Scheduler-ak ez du instrukzioak exekutatzen
+                            // Main loop-ak exekutatzen ditu eta scheduler soilik bukaerak egiaztatu ditzake
                         }
                     }
                 }
