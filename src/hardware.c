@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+/* MMU logging aukera (lehenetsita itzalita tick soilik moduan) */
+int mmu_logs_enabled = 0;
+
 /* MMU hasieratu */
 void mmu_init(mmu_t* mmu) {
     // TLB hutsik
@@ -12,7 +15,9 @@ void mmu_init(mmu_t* mmu) {
     mmu->tlb_index = 0;
     mmu->ptbr = 0;
     
-    printf("[MMU] MMU hasieratuta hardware threadarentzat\n");
+    if (mmu_logs_enabled) {
+        printf("[MMU] MMU hasieratuta hardware threadarentzat\n");
+    }
 }
 
 /* Helbide birtuala itzuli helbide fisiko bihurtu */
@@ -74,7 +79,9 @@ void mmu_flush_tlb(mmu_t* mmu) {
     }
     mmu->tlb_index = 0;
     
-    printf("[MMU] TLB garbitu da\n");
+    if (mmu_logs_enabled) {
+        printf("[MMU] TLB garbitu da\n");
+    }
 }
 
 /* Hardware thread hasieratu */

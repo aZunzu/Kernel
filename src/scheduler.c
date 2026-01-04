@@ -162,8 +162,8 @@ void* scheduler(void* arg) {
                         if (cur->type == PROCESS_TICK_BASED) {
                             tick_based_procs++;
                             
-                            // TICK bidezko prozesua: denbora neurtzean aurreratzen da
-                            cur->time_in_cpu++;
+                            // TICK bidezko prozesua: main loop-ean aurreratzen da tick bakoitzean
+                            // Scheduler-ak soilik egiaztatu bukaerak
                             
                             // A) PROZESUA BUKATU (exec_time TICK-etatik)
                             if (cur->time_in_cpu >= cur->exec_time) {
@@ -322,77 +322,7 @@ void* scheduler(void* arg) {
             }
         }
         
-        // Estatistikak eguneratu: 4 tick bakoitzean erakutsi (biltzen da)
-        if (scheduler_tick_count % 4 == 0) {
-            int current_tick = params->shared->sim_tick;
-            printf("\n   TICK %d (Scheduler exekuzio %d) - SISTEMA ESTATISTIKAK:\n", 
-                   current_tick, scheduler_tick_count);
-            
-            // Kontatu prozesu mota bakoitzeko
-            int running_count = 0;
-            int ready_count = 0;
-            int blocked_count = 0;
-            int terminated_count = 0;
-            int tick_running = 0;
-            int instruction_running = 0;
-            
-            // RUNNING kontatu
-            for (int c = 0; c < cpu_sys->cpu_kop; c++) {
-                for (int i = 0; i < cpu_sys->core_kop; i++) {
-                    for (int h = 0; h < cpu_sys->hw_thread_kop; h++) {
-                        pcb_t* p = cpu_sys->cpus[c].cores[i].hw_threads[h].current_process;
-                        if (p) {
-                            running_count++;
-                            if (p->type == PROCESS_TICK_BASED) tick_running++;
-                            else instruction_running++;
-                        }
-                    }
-                }
-            }
-            
-            // READY kontatu
-            for (pcb_t* p = params->ready_queue->head; p; p = p->next) {
-                if (p->state == READY) ready_count++;
-            }
-            
-            // BLOCKED kontatu
-            for (pcb_t* p = params->blocked_queue->head; p; p = p->next) {
-                if (p->state == BLOCKED) blocked_count++;
-            }
-            
-            // TERMINATED kontatu
-            for (pcb_t* p = params->terminated_queue->head; p; p = p->next) {
-                if (p->state == TERMINATED) terminated_count++;
-            }
-            
-            printf("    • Prozesuak: RUNNING=%d (TICK:%d, INSTR:%d), READY=%d\n",
-                   running_count, tick_running, instruction_running, ready_count);
-            printf("    • BLOCKED=%d, TERMINATED=%d\n", blocked_count, terminated_count);
-            printf("    • Instrukzioak: %d (guztira: %d)\n",
-                   instructions_this_tick, total_instructions_executed);
-            
-            // CPU erabilera kalkulatu
-            int total_hw = cpu_sys->cpu_kop * cpu_sys->core_kop * cpu_sys->hw_thread_kop;
-            if (total_hw > 0) {
-                printf("    • CPU erabilera: %d/%d HW thread (%.0f%%)\n",
-                       running_count,
-                       total_hw,
-                       (running_count * 100.0) / total_hw);
-            }
-            
-            // Memoria estatistikak
-            if (phys_mem.data != NULL) {
-                printf("    • Memoria: %u frame libre (%u KB erabilgarri)\n",
-                       phys_mem.free_frames, 
-                       phys_mem.free_frames * PAGE_SIZE / 1024);
-            }
-            
-            // Safety preemptions erakutsi
-            if (safety_preemptions > 0) {
-                printf("    • Safety preemptions: %d\n", safety_preemptions);
-            }
-        }
-        
+        // Estatistikak desaktibatuta (output garbiagoa)
         pthread_mutex_unlock(&cpu_sys->mutex);
         
         // Pausa txiki bat simulazioa ikusteko

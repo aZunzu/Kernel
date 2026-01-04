@@ -42,6 +42,9 @@ void mmu_init(mmu_t* mmu);
 uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* page_table);
 void mmu_flush_tlb(mmu_t* mmu);
 
+/* Logak kontrolatzeko bandera globala (tick simulazioetan isilarazteko) */
+extern int mmu_logs_enabled;
+
 /* Hardware thread funtzioak */
 void hw_thread_init(hw_thread_t* hw, int id);
 

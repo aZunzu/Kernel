@@ -212,6 +212,7 @@ void option_2_didactic_menu() {
     shared.scheduler_signal = 0;
     
     cpu_system_t cpu_sys;
+    mmu_logs_enabled = 0;  // TICK soilik moduan MMU log-ak ez erakutsi
     cpu_system_init(&cpu_sys);
     
     process_queue_t ready_q, blocked_q, terminated_q;
@@ -444,6 +445,7 @@ void option_3_automatic_simulation() {
     shared.scheduler_signal = 0;
     
     cpu_system_t cpu_sys;
+    mmu_logs_enabled = 0;  // TICK aukeran MMU log-ak ez erakutsi
     cpu_system_init(&cpu_sys);
     
     process_queue_t ready_q, blocked_q, terminated_q;
@@ -489,7 +491,7 @@ void option_3_automatic_simulation() {
     
     usleep(500000);
     
-    printf("\n╔══════════════════════════════════════════╗\n");
+    printf("\n╔══════════════════════════════════════╗\n");
     printf("║      SIMULAZIOA MARTXAN                  ║\n");
     printf("╠══════════════════════════════════════════╣\n");
     printf("║ Iraupena: 20 tick                        ║\n");
@@ -498,78 +500,128 @@ void option_3_automatic_simulation() {
     printf("╚══════════════════════════════════════════╝\n\n");
     
     int tick_max = 20;
+    int last_shown_tick = 0;
+    int last_executed_tick = -1;
     
-    for (int tick = 1; tick <= tick_max && shared.sim_running; tick++) {
-        shared.sim_tick = tick;
+    while (shared.sim_running && shared.sim_tick < tick_max) {
+        int current_tick = shared.sim_tick;
         
-        printf("\n══════════════════════════════════════════════\n");
-        printf(" TICK #%d - SIMULAZIO AUTOMATIKOA (TICK bidezkoak)\n", tick);
-        printf("══════════════════════════════════════════════\n");
-        
-        // EKINTZA ALEATORIOAK
-        if (rand() % 100 < 25) {
-            pcb_t* p = pcb_create(100 + tick, rand() % 2);
-            p->state = READY;
-            p->type = PROCESS_TICK_BASED;
-            p->exec_time = 2 + rand() % 6;
-            queue_push(&ready_q, p);
-            printf("\n[EKINTZA] TICK bidezko prozesu berria: PID=%d (Exec=%d TICK)\n", 
-                   p->pid, p->exec_time);
+        // Itxaron tick berri bat egon arte (clock thread-ak eguneratzen du)
+        if (current_tick == last_executed_tick) {
+            usleep(5000);  // 5ms itxaron
+            continue;
         }
         
-        if (rand() % 100 < 20) {
-            int found = 0;
-            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
-                for (int i = 0; i < cpu_sys.core_kop; i++) {
-                    for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
-                        hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
-                        if (hw->current_process) {
-                            pcb_t* p = hw->current_process;
+        last_executed_tick = current_tick;
+        
+        // === EXEKUZIO: Prozesu TICK-based bakoitzak tick bat aurreratzen du ===
+        pthread_mutex_lock(&cpu_sys.mutex);
+        
+        for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+            for (int i = 0; i < cpu_sys.core_kop; i++) {
+                for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                    hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
+                    pcb_t* p = hw->current_process;
+                    
+                    if (p && p->state == RUNNING && p->type == PROCESS_TICK_BASED) {
+                        // TICK bat aurreratu
+                        p->time_in_cpu++;
+                        
+                        // Egiaztatu ea bukatu den
+                        if (p->time_in_cpu >= p->exec_time) {
+                            printf("[TICK] PID %d: bukatu da (%d/%d TICK)\n", 
+                                   p->pid, p->time_in_cpu, p->exec_time);
                             hw->current_process = NULL;
-                            p->state = BLOCKED;
-                            queue_push(&blocked_q, p);
-                            printf("\n[EKINTZA] I/O eskaera: PID=%d (TICK bidezkoa) → BLOCKED\n", p->pid);
-                            found = 1;
-                            goto io_action_done;
+                            p->state = TERMINATED;
+                            queue_push(&terminated_q, p);
                         }
                     }
                 }
             }
-            io_action_done:
-            if (!found && tick > 3) {
-                printf("\n[EKINTZA] Ez dago RUNNING prozesurik I/O eskaerarako\n");
-            }
         }
         
-        if (rand() % 100 < 30 && blocked_q.head) {
-            pcb_t* p = queue_pop(&blocked_q);
-            if (p) {
+        pthread_mutex_unlock(&cpu_sys.mutex);
+        
+        // === ERAKUSTE FASEA ===
+        if (current_tick != last_shown_tick) {
+            last_shown_tick = current_tick;
+        
+            printf("\n══════════════════════════════════════════════\n");
+            printf(" TICK #%d - SIMULAZIO AUTOMATIKOA (TICK bidezkoak)\n", current_tick);
+            printf("══════════════════════════════════════════════\n");
+            
+            // EKINTZA ALEATORIOAK
+            if (rand() % 100 < 25) {
+                pcb_t* p = pcb_create(100 + current_tick, rand() % 2);
                 p->state = READY;
+                p->type = PROCESS_TICK_BASED;
+                p->exec_time = 2 + rand() % 6;
                 queue_push(&ready_q, p);
-                printf("\n[EKINTZA] I/O amaiera: PID=%d → READY\n", p->pid);
+                printf("\n[EKINTZA] TICK bidezko prozesu berria: PID=%d (Exec=%d TICK)\n", 
+                       p->pid, p->exec_time);
             }
-        }
-        
-        printf("\n[EGOERA LABURRA]\n");
-        
-        int running_count = 0;
-        for (int c = 0; c < cpu_sys.cpu_kop; c++) {
-            for (int i = 0; i < cpu_sys.core_kop; i++) {
-                for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
-                    if (cpu_sys.cpus[c].cores[i].hw_threads[h].current_process) {
-                        running_count++;
+            
+            if (rand() % 100 < 20) {
+                pthread_mutex_lock(&cpu_sys.mutex);
+                for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+                    for (int i = 0; i < cpu_sys.core_kop; i++) {
+                        for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                            hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
+                            if (hw->current_process) {
+                                pcb_t* p = hw->current_process;
+                                hw->current_process = NULL;
+                                p->state = BLOCKED;
+                                queue_push(&blocked_q, p);
+                                printf("\n[EKINTZA] I/O eskaera: PID=%d → BLOCKED\n", p->pid);
+                                pthread_mutex_unlock(&cpu_sys.mutex);
+                                goto io_action_done;
+                            }
+                        }
+                    }
+                }
+                pthread_mutex_unlock(&cpu_sys.mutex);
+                io_action_done:;
+            }
+            
+            if (rand() % 100 < 30 && blocked_q.head) {
+                pcb_t* p = queue_pop(&blocked_q);
+                if (p) {
+                    p->state = READY;
+                    queue_push(&ready_q, p);
+                    printf("\n[EKINTZA] I/O amaiera: PID=%d → READY\n", p->pid);
+                }
+            }
+            
+            // EGOERA OROKORRA
+            printf("\n[EGOERA OROKORRA]\n");
+            
+            int running_count = 0;
+            
+            // Prozesu RUNNING-ak kontatu eta erakutsi
+            for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+                for (int i = 0; i < cpu_sys.core_kop; i++) {
+                    for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                        pcb_t* p = cpu_sys.cpus[c].cores[i].hw_threads[h].current_process;
+                        if (p) {
+                            running_count++;
+                            int progress = (p->time_in_cpu * 100) / p->exec_time;
+                            printf("  • PID=%d (TICK): HW %d-%d-%d | %d/%d TICK (%d%%)\n",
+                                   p->pid, c, i, h, p->time_in_cpu, p->exec_time, progress);
+                        }
                     }
                 }
             }
+            
+            printf("\n[LABURPENA]\n");
+            printf("  RUNNING: %d (TICK:%d) | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
+                   running_count, running_count,
+                   queue_count(&ready_q),
+                   queue_count(&blocked_q),
+                   queue_count(&terminated_q));
         }
         
-        printf("  RUNNING: %d | READY: %d | BLOCKED: %d | TERMINATED: %d\n",
-               running_count, 
-               queue_count(&ready_q),
-               queue_count(&blocked_q),
-               queue_count(&terminated_q));
-        
-        usleep(300000);
+        // Hariak exekutatu eta erlojua aurreratu ahal izateko pixka bat lo egin
+        usleep(300000);  // 300ms
     }
     
     printf("\n══════════════════════════════════════════════\n");
@@ -661,6 +713,7 @@ void option_4_system_info() {
 // =======================================================
 
 void option_5_memory_virtual_simulation() {
+    mmu_logs_enabled = 1;  // MMU log-ak gaitu INSTRUKZIO simulaziorako
     printf("\n=== 5. AUKERA: MEMORIA BIRTUALAREN SIMULAZIOA ===\n");
     printf("INSTRUKZIO bidezko prozesuen simulazioa (3. zatia)\n");
     printf("Prozesuak instrukzioen arabera exekutatzen dira\n");
