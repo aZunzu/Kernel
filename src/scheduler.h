@@ -19,6 +19,7 @@ typedef struct {
     process_queue_t* terminated_queue;
     cpu_system_t* cpu_sys;
     sched_policy_t policy;
+    int simulation_mode;  // 3=TICK, 5=INSTRUKZIO
 } SchedulerParams;
 
 /* Scheduler haria */

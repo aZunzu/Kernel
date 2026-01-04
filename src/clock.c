@@ -25,10 +25,6 @@ void* clock_thread(void* arg) {
         shared->sim_tick = tick;  // keep global tick in sync for display/logic
         shared->done = 0;
         
-        if (tick % 5 == 0) {
-            printf("[ERLOJUA] Tick %d\n", tick);
-        }
-        
         pthread_cond_broadcast(&shared->cond2);
         pthread_mutex_unlock(&shared->mutex);
     }

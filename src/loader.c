@@ -189,9 +189,47 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
     // 4. PTBR eguneratu
     pcb->mm_info->ptbr = ((uint8_t*)pcb->mm_info->page_table - phys_mem.data);
     
+    // Kontar zenbat frame erabilita dagoen
+    int frames_used = 0;
+    page_table_t* pt = pcb->mm_info->page_table;
+    for (uint32_t i = 0; i < pt->num_entries; i++) {
+        if (pt->entries[i].present) frames_used++;
+    }
+    
     printf("[LOADER] Prozesua sortu: PID=%d\n", pid);
     printf("  - Orri-taulak: %u sarrera\n", pcb->mm_info->page_table->num_entries);
+    printf("  - Frame-ak erabilita: %d\n", frames_used);
     printf("  - PTBR: 0x%06X\n", pcb->mm_info->ptbr);
     
     return pcb;
+}
+
+/* Prozesaren memoria askatu (terminatzerakoan) */
+void free_process_memory(pcb_t* proc) {
+    if (!proc || !proc->mm_info) return;
+    
+    page_table_t* pt = proc->mm_info->page_table;
+    if (!pt) return;
+    
+    // Orri-taulako sarrera bakoitza miatzea eta frame-ak askatu
+    int frames_freed = 0;
+    for (uint32_t i = 0; i < pt->num_entries; i++) {
+        pte_t* entry = &pt->entries[i];
+        if (entry->present) {
+            // Frame helbidea lortu eta askatu
+            uint32_t frame_addr = entry->frame_number * PAGE_SIZE;
+            void* frame_ptr = phys_mem.data + frame_addr;
+            free_frame(frame_ptr);
+            frames_freed++;
+            entry->present = 0;  // Markatu erabilezina
+        }
+    }
+    
+    // Orri-taula eta memoria informazioa askatu
+    destroy_page_table(pt);
+    free(proc->mm_info);
+    proc->mm_info = NULL;
+    
+    printf("[LOADER] Prozesaren memoria askatu: PID=%d (%d frame-ak liberatu)\n", 
+           proc->pid, frames_freed);
 }

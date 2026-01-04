@@ -91,8 +91,17 @@ void* scheduler(void* arg) {
     // Ausazko zenbakiak hasieratu
     srand(time(NULL));
     
-    printf("[SCHEDULER] Hasieratuta - Sistema hibridoa\n");
-    printf("[SCHEDULER] Prozesu motak: TICK bidezkoak eta INSTRUKZIO bidezkoak\n");
+    // Simulazio motaren arabera mezu egokia erakutsi
+    if (params->simulation_mode == 5) {
+        printf("[SCHEDULER] Hasieratuta - Memoria birtuala\n");
+        printf("[SCHEDULER] Prozesu motak: INSTRUKZIO bidezkoak\n");
+    } else if (params->simulation_mode == 3) {
+        printf("[SCHEDULER] Hasieratuta - Simulazio automatikoa\n");
+        printf("[SCHEDULER] Prozesu motak: TICK bidezkoak\n");
+    } else {
+        printf("[SCHEDULER] Hasieratuta - Sistema hibridoa\n");
+        printf("[SCHEDULER] Prozesu motak: TICK bidezkoak eta INSTRUKZIO bidezkoak\n");
+    }
     printf("[SCHEDULER] Timer-ak aktibatuko du exekuzio bakoitzean\n");
     
     int scheduler_tick_count = 0;

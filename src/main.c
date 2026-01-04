@@ -111,34 +111,11 @@ void option_1_synchronization() {
     printf("- TIMER ERDIA: %d tick (%.2f Hz)\n", TIMER2_TICKS, (double)CLOCK_HZ/TIMER2_TICKS);
     printf("- TIMER MANTSOA: %d tick (%.2f Hz)\n", TIMER3_TICKS, (double)CLOCK_HZ/TIMER3_TICKS);
     
-    printf("\nSistema 15 segundoz exekutatzen...\n");
-    printf("Ctrl+C sakatu aurretik amaitzeko.\n\n");
+    printf("\nSistema exekutatzen ari da...\n");
+    printf("Amaitzeko: Ctrl+C sakatu\n\n");
     
-    for (int i = 15; i > 0; i--) {
-        printf("\rGeratzen diren segundoak: %2d", i);
-        fflush(stdout);
-        sleep(1);
-    }
-    
-    printf("\n\nProba amaitzen...\n");
-    
-    shared.sim_running = 0;
-    shared.done = 1;
-    pthread_mutex_lock(&shared.mutex);
-    pthread_cond_broadcast(&shared.cond);
-    pthread_cond_broadcast(&shared.cond2);
-    pthread_cond_broadcast(&shared.cond_scheduler);
-    pthread_mutex_unlock(&shared.mutex);
-    
-    printf("Clock hariaren amaiera itxaroten...\n");
-    pthread_join(clock_tid, NULL);
-    
-    printf("Timer hariek amaiera itxaroten...\n");
-    for (int i = 0; i < TENP_KOP; i++) {
-        pthread_join(timer_tid[i], NULL);
-    }
-    
-    printf("Sinkronizazio proba osatuta.\n");
+    // Itxaron erabiltzaileak Ctrl+C sakatu arte
+    pause();
 }
 
 // =======================================================
@@ -226,7 +203,8 @@ void option_2_didactic_menu() {
         .blocked_queue = &blocked_q,
         .terminated_queue = &terminated_q,
         .cpu_sys = &cpu_sys,
-        .policy = POLICY_RULETA_AVANZATUA
+        .policy = POLICY_RULETA_AVANZATUA,
+        .simulation_mode = 2  // Menu didaktikoa (hibridoa)
     };
     
     pthread_t sched_thread;
@@ -454,14 +432,26 @@ void option_3_automatic_simulation() {
     queue_init(&terminated_q);
     
     printf("Prozesu hasierakoak sortzen (TICK bidezkoak)...\n");
-    for (int i = 0; i < 5; i++) {
-        pcb_t* p = pcb_create(i+1, rand() % 2);
+    const int base_exec_times[4] = {5, 6, 4, 7};
+    const int base_priorities[4] = {0, 1, 0, 1};
+    for (int i = 0; i < 4; i++) {
+        pcb_t* p = pcb_create(i + 1, base_priorities[i]);
         p->state = READY;
         p->type = PROCESS_TICK_BASED;
-        p->exec_time = 3 + rand() % 8;
+        p->exec_time = base_exec_times[i];
         queue_push(&ready_q, p);
-        printf("  PID=%d sortuta (TICK bidezkoa, Exec=%d TICK)\n", p->pid, p->exec_time);
+        printf("  PID=%d sortuta (TICK bidezkoa, Exec=%d TICK, Prio=%d)\n", 
+               p->pid, p->exec_time, p->priority);
     }
+
+    // Prozesu berriak probabilitatez injektatu (tick bakoitzean)
+    ProcessGenParams gen_params = {
+        .shared = &shared,
+        .ready_queue = &ready_q,
+        .probability = 25  // %25eko aukera tick bakoitzean
+    };
+    pthread_t gen_thread;
+    pthread_create(&gen_thread, NULL, process_generator, &gen_params);
     
     SchedulerParams sched_params = {
         .shared = &shared,
@@ -469,7 +459,8 @@ void option_3_automatic_simulation() {
         .blocked_queue = &blocked_q,
         .terminated_queue = &terminated_q,
         .cpu_sys = &cpu_sys,
-        .policy = POLICY_RULETA_AVANZATUA
+        .policy = POLICY_RULETA_AVANZATUA,
+        .simulation_mode = 3  // TICK bidezkoak
     };
     
     pthread_t sched_thread;
@@ -551,16 +542,6 @@ void option_3_automatic_simulation() {
             printf("══════════════════════════════════════════════\n");
             
             // EKINTZA ALEATORIOAK
-            if (rand() % 100 < 25) {
-                pcb_t* p = pcb_create(100 + current_tick, rand() % 2);
-                p->state = READY;
-                p->type = PROCESS_TICK_BASED;
-                p->exec_time = 2 + rand() % 6;
-                queue_push(&ready_q, p);
-                printf("\n[EKINTZA] TICK bidezko prozesu berria: PID=%d (Exec=%d TICK)\n", 
-                       p->pid, p->exec_time);
-            }
-            
             if (rand() % 100 < 20) {
                 pthread_mutex_lock(&cpu_sys.mutex);
                 for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -655,6 +636,7 @@ void option_3_automatic_simulation() {
     pthread_join(sched_thread, NULL);
     pthread_join(timer_thread_id, NULL);
     pthread_join(clock_tid, NULL);
+    pthread_join(gen_thread, NULL);
     
     printf("\n TICK bidezko simulazioa ondo amaituta.\n");
 }
@@ -769,17 +751,17 @@ void option_5_memory_virtual_simulation() {
     queue_init(&blocked_q);
     queue_init(&terminated_q);
     
-    // 5. 5 prozesu sortu (INSTRUCTION-BASED soilik)
-    printf("4. 5 prozesu ELF-etik sortzen...\n");
+    // 5. 4 prozesu sortu (hasierako karga finkoa - ELF-etik kargatuta)
+    printf("4. 4 prozesu ELF-etik sortzen (hasierako karga finkoa)...\n");
     int processes_created = 0;
+    int total_spawned = 0;
+    const int max_spawned_processes = 5;  // Gehienez 5 prozesu gehiago
+    int next_pid_instr = 1;
     
-    for (int i = 0; i < 5; i++) {
-        // Prozesuaren tamainaren arabera prioridad esleitu
-        // Prozesu laburrak (< 15 instr): garrantzitsua, scheduler-an gehiago hautatzeko aukera
-        // Prozesu luzeak: normala, ez urgentea
+    // Hasierako 4 prozesu sortu
+    for (int i = 0; i < 4; i++) {
         int priority = (programs[i]->code_size < 15) ? 1 : 0;
-        
-        pcb_t* proc = create_process_from_program(i + 1, priority, programs[i]);
+        pcb_t* proc = create_process_from_program(next_pid_instr++, priority, programs[i]);
         if (proc) {
             proc->type = PROCESS_INSTRUCTION_BASED;
             proc->state = READY;
@@ -787,10 +769,11 @@ void option_5_memory_virtual_simulation() {
             proc->pc = programs[i]->code_start;
             queue_push(&ready_q, proc);
             processes_created++;
+            total_spawned++;
             const char* prio_text = (priority == 1) ? "GARRANTZITSUA (x3)" : "NORMALA (x1)";
             printf("   PID=%d: %d instrukzio, Prioridad: %s\n", proc->pid, proc->exec_time, prio_text);
         } else {
-            printf("   ERROREA: PID=%d ezin izan da sortu\n", i + 1);
+            printf("   ERROREA: ezin izan da hasierako prozesua sortu (ELF %d)\n", i);
         }
     }
     
@@ -815,7 +798,8 @@ void option_5_memory_virtual_simulation() {
         .blocked_queue = &blocked_q,
         .terminated_queue = &terminated_q,
         .cpu_sys = &cpu_sys,
-        .policy = POLICY_RULETA_AVANZATUA
+        .policy = POLICY_RULETA_AVANZATUA,
+        .simulation_mode = 5  // INSTRUKZIO bidezkoak
     };
     
     pthread_t sched_thread;
@@ -853,6 +837,7 @@ void option_5_memory_virtual_simulation() {
     int tick_max = 300;
     int last_shown_tick = 0;
     int last_executed_tick = -1;
+    int target_processes = processes_created;  // Hasierako kopurua + probabilitatez kargatuko direnak
     
     while (shared.sim_running && shared.sim_tick < tick_max) {
         int current_tick = shared.sim_tick;
@@ -864,6 +849,37 @@ void option_5_memory_virtual_simulation() {
         }
         
         last_executed_tick = current_tick;
+
+        // Probabilitatez prozesu berri bat kargatu (hasierako 4en ondoren)
+        // ELF fitxategiak random aukeratu - gehienez max_spawned_processes gehiago
+        // Memory check: gehienez 5 frame libre mantendu behar (segurtasunarako)
+        const uint32_t min_free_frames = 5;
+        if (total_spawned < processes_created + max_spawned_processes && 
+            (rand() % 100 < 25) && 
+            phys_mem.free_frames > min_free_frames) {
+            
+            int prog_idx = rand() % 5;  // Random ELF bat aukeratu (0-4)
+            program_t* prog = programs[prog_idx];
+            int priority = (prog->code_size < 15) ? 1 : 0;
+            
+            // Prozesu berria sortu programa hartik (PID desberdinarekin)
+            pcb_t* proc = create_process_from_program(next_pid_instr++, priority, prog);
+            if (proc) {
+                proc->type = PROCESS_INSTRUCTION_BASED;
+                proc->state = READY;
+                proc->exec_time = prog->code_size;
+                proc->pc = prog->code_start;
+                queue_push(&ready_q, proc);
+                total_spawned++;
+                target_processes++;
+                const char* prio_text = (priority == 1) ? "GARRANTZITSUA (x3)" : "NORMALA (x1)";
+                printf("\n[EKINTZA] INSTR prozesu berria: PID=%d (ELF %d, %d instrukzio, %s)\n",
+                       proc->pid, prog_idx, proc->exec_time, prio_text);
+            } else {
+                printf("\n[EKINTZA] MEMORIA INSUFIZIENTEA: ezin izan da INSTR prozesu berria sortu (%u frame libre)\n",
+                       phys_mem.free_frames);
+            }
+        }
         
         // === EXEKUZIO: HW thread-ek instrukzioak exekutatzen dituzte ===
         pthread_mutex_lock(&cpu_sys.mutex);
@@ -885,12 +901,14 @@ void option_5_memory_virtual_simulation() {
                             // EXIT agindua - HW thread askatu eta ilaran jarri scheduler-entzat
                             p->time_in_cpu++;
                             hw->current_process = NULL;
+                            free_process_memory(p);  // Memoria liberatu terminatzerakoan
                             queue_push(&terminated_q, p);  // Scheduler-ak egiaztatu eta TERMINATED jarriko du
                             mmu_flush_tlb(&hw->mmu);
                         } else if (result < 0) {
                             // Errorea - markar exit code eta ilaran jarri
                             p->exit_code = -1;
                             hw->current_process = NULL;
+                            free_process_memory(p);  // Memoria liberatu errorean ere
                             queue_push(&terminated_q, p);  // Scheduler-ak TERMINATED jarriko du
                             mmu_flush_tlb(&hw->mmu);
                         }
@@ -939,14 +957,16 @@ void option_5_memory_virtual_simulation() {
                queue_count(&terminated_q));
         
         if (phys_mem.data != NULL) {
-            printf("  Memoria: %u frame libre (%u KB erabilgarri)\n",
-                   phys_mem.free_frames, 
-                   phys_mem.free_frames * PAGE_SIZE / 1024);
+            uint32_t used_frames = NUM_FRAMES - phys_mem.free_frames;
+            printf("  Memoria: %u/%u frame-ak erabilita | %u libre (%.1f%%)\n",
+                   used_frames, NUM_FRAMES,
+                   phys_mem.free_frames,
+                   (100.0 * phys_mem.free_frames) / NUM_FRAMES);
         }
         }
         
-        // Amaiera baldintzak - 5 prozesu ELF guztiak bukatu arte
-        if (queue_count(&terminated_q) >= 5) {
+        // Amaiera baldintzak - sortutako prozesu guztiak bukatu arte
+        if (queue_count(&terminated_q) >= target_processes) {
             printf("\n[OHARRA] Prozesu guztiak bukatu dira. Simulazioa amaitzen...\n");
             break;
         }
@@ -1009,7 +1029,9 @@ void option_5_memory_virtual_simulation() {
     }
     
     printf("\n INSTRUKZIO bidezko simulazioa ondo amaituta.\n");
-    printf(" 5 programa ELF exekutatu dira.\n");
+    printf(" %d prozesu INSTR exekutatu dira (5 ELF fitxategitik kargatuta).\n", target_processes);
+    printf(" Guztira: %d prozesu spawn-atu, %d bukatu.\n", 
+           total_spawned, queue_count(&terminated_q));
 }
 
 // =======================================================

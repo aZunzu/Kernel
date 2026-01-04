@@ -22,4 +22,7 @@ program_t* load_program_from_file(const char* filename);
 void free_program(program_t* prog);
 pcb_t* create_process_from_program(int pid, int priority, program_t* prog);
 
+/* Prozesuren memoria askatu */
+void free_process_memory(pcb_t* proc);
+
 #endif
