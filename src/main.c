@@ -175,7 +175,34 @@ void option_2_didactic_menu() {
     printf("\n=== 2. AUKERA: SCHEDULER MENU DIDAKTIKOA ===\n");
     printf("Schedulerraren funtzionamendua pausoz pauso\n");
     printf("Prozesu motak: TICK bidezkoak eta INSTRUKZIO bidezkoak\n");
+    printf("\n⚠️  OHARRA:\n");
+    printf("  • Ez dago prozesu hasierakorik. Zu sortu behar dituzu.\n");
+    printf("  • TIMER aktibatzea = Scheduler-a exekutatzea (bien artean bat dira).\n");
+    printf("  • TICK prozesuen bakarrik blokea daitezke I/O-rako.\n");
+    printf("  • INSTRUKZIO prozesuak instrukzioz instrukzio exekutatzen dira.\n");
     printf("------------------------------------------------------\n");
+    
+    // Memoria fisikoa hasieratu
+    physical_memory_init();
+    printf("\n[MEMORIA] Hasieratuta: %u frame libre\n", phys_mem.free_frames);
+    
+    // ELF programak kargatu
+    printf("[LOADER] ELF programak kargatzen...\n");
+    program_t* programs[5];
+    const char* elf_files[5] = {
+        "elf/prog000.elf", "elf/prog001.elf", "elf/prog002.elf",
+        "elf/prog003.elf", "elf/prog004.elf"
+    };
+    
+    for (int i = 0; i < 5; i++) {
+        programs[i] = load_program_from_file(elf_files[i]);
+        if (!programs[i]) {
+            printf("[ERROREA] Ezin izan da %s kargatu\n", elf_files[i]);
+            return;
+        }
+        printf("  • %s kargatuta (%d instrukzio)\n", 
+               elf_files[i], programs[i]->code_size);
+    }
     
     SharedData shared;
     pthread_mutex_init(&shared.mutex, NULL);
@@ -189,7 +216,7 @@ void option_2_didactic_menu() {
     shared.scheduler_signal = 0;
     
     cpu_system_t cpu_sys;
-    mmu_logs_enabled = 0;  // TICK soilik moduan MMU log-ak ez erakutsi
+    mmu_logs_enabled = 0;  // Menu didaktikoan MMU log-ak ez erakutsi
     cpu_system_init(&cpu_sys);
     
     process_queue_t ready_q, blocked_q, terminated_q;
@@ -254,17 +281,33 @@ void option_2_didactic_menu() {
             }
             
             case 2: {
-                pcb_t* p = pcb_create(pid++, rand() % 2);
-                p->state = READY;
-                p->type = PROCESS_INSTRUCTION_BASED;
-                p->exec_time = 5 + rand() % 10;
-                p->pc = 0x000000;
-                queue_push(&ready_q, p);
-                printf("\n INSTRUKZIO bidezko prozesua: PID=%d (Instrukzio max: %d)\n", 
-                       p->pid, p->exec_time);
-                printf("   (Amaituko da EXIT agindua aurkitzean edo %d instrukzio ondoren)\n", 
-                       p->exec_time);
-                printf("   Oharra: Memoria birtuala simulatzen, ez da programa benetan kargatzen\n");
+                // Memoria nahikoa egiaztatu
+                if (phys_mem.free_frames < 5) {
+                    printf("\n ⚠️  MEMORIA INSUFIZIENTEA: %u frame libre (min 5 behar)\n",
+                           phys_mem.free_frames);
+                    break;
+                }
+                
+                // Random ELF programa bat aukeratu
+                int prog_idx = rand() % 5;
+                program_t* prog = programs[prog_idx];
+                int priority = rand() % 2;
+                
+                // Prozesua sortu programa kargatuz
+                pcb_t* p = create_process_from_program(pid++, priority, prog);
+                if (p) {
+                    p->type = PROCESS_INSTRUCTION_BASED;
+                    p->state = READY;
+                    p->exec_time = prog->code_size;
+                    p->pc = prog->code_start;
+                    queue_push(&ready_q, p);
+                    
+                    printf("\n INSTRUKZIO bidezko prozesua: PID=%d (ELF %d, %d instrukzio, Prio=%d)\n", 
+                           p->pid, prog_idx, p->exec_time, p->priority);
+                    printf("   Memoria: %u frame libre\n", phys_mem.free_frames);
+                } else {
+                    printf("\n ⚠️  ERROREA: Ezin izan da prozesua sortu\n");
+                }
                 break;
             }
             
@@ -274,6 +317,52 @@ void option_2_didactic_menu() {
                 printf("TIMER aktibatzen... (TICK #%d)\n", tick_count);
                 printf("══════════════════════════════════════════════\n");
                 
+                // === EXEKUZIO FASEA: Prozesuak exekutatu scheduler baino lehen ===
+                pthread_mutex_lock(&cpu_sys.mutex);
+                
+                for (int c = 0; c < cpu_sys.cpu_kop; c++) {
+                    for (int i = 0; i < cpu_sys.core_kop; i++) {
+                        for (int h = 0; h < cpu_sys.hw_thread_kop; h++) {
+                            hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
+                            pcb_t* p = hw->current_process;
+                            
+                            if (p && p->state == RUNNING) {
+                                // TICK prozesuak: time_in_cpu inkrementatu
+                                if (p->type == PROCESS_TICK_BASED) {
+                                    p->time_in_cpu++;
+                                }
+                                // INSTRUKZIO prozesuak: instrukzio bat exekutatu
+                                else if (p->type == PROCESS_INSTRUCTION_BASED) {
+                                    int result = execute_step(hw, p);
+                                    
+                                    if (result > 0) {
+                                        p->time_in_cpu++;
+                                    } else if (result == 0) {
+                                        // EXIT - prozesua terminatu
+                                        p->time_in_cpu++;
+                                        hw->current_process = NULL;
+                                        free_process_memory(p);
+                                        queue_push(&terminated_q, p);
+                                        mmu_flush_tlb(&hw->mmu);
+                                        printf("   [EXEC] PID=%d EXIT instrukzioa (TERMINATED)\n", p->pid);
+                                    } else {
+                                        // Errorea
+                                        p->exit_code = -1;
+                                        hw->current_process = NULL;
+                                        free_process_memory(p);
+                                        queue_push(&terminated_q, p);
+                                        mmu_flush_tlb(&hw->mmu);
+                                        printf("   [EXEC] PID=%d ERROREA exekuzioan (TERMINATED)\n", p->pid);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                pthread_mutex_unlock(&cpu_sys.mutex);
+                
+                // === SCHEDULER AKTIBATU ===
                 pthread_mutex_lock(&shared.mutex);
                 shared.scheduler_signal = 1;
                 pthread_cond_signal(&shared.cond_scheduler);
@@ -295,6 +384,17 @@ void option_2_didactic_menu() {
                             hw_thread_t* hw = &cpu_sys.cpus[c].cores[i].hw_threads[h];
                             if (hw->current_process) {
                                 pcb_t* p = hw->current_process;
+                                
+                                // Solo procesos TICK pueden bloquearse
+                                if (p->type != PROCESS_TICK_BASED) {
+                                    printf("\n ⚠️  Errorea: PID=%d (%s) ezin da blokeatu.\n", 
+                                           p->pid, get_process_type_name(p->type));
+                                    printf("    Arrazoia: INSTRUKZIO prozesuen ezin dira blokea I/O-rako.\n");
+                                    printf("    (Instrukzioz instrukzio exekutatzen dira EXIT arte)\n");
+                                    aurkitua = 1;
+                                    goto io_done;
+                                }
+                                
                                 hw->current_process = NULL;
                                 p->state = BLOCKED;
                                 queue_push(&blocked_q, p);
@@ -356,10 +456,18 @@ void option_2_didactic_menu() {
                             if (hw->current_process) {
                                 pcb_t* p = hw->current_process;
                                 hw->current_process = NULL;
+                                
+                                // Memoria liberatu INSTRUKZIO prozesuentzat
+                                if (p->type == PROCESS_INSTRUCTION_BASED) {
+                                    free_process_memory(p);
+                                    mmu_flush_tlb(&hw->mmu);
+                                }
+                                
                                 p->state = TERMINATED;
                                 queue_push(&terminated_q, p);
                                 printf("\n Prozesua bukatu (FORZATU): PID=%d (Mota: %s)\n", 
                                        p->pid, get_process_type_name(p->type));
+                                printf("   Memoria: %u frame libre\n", phys_mem.free_frames);
                                 aurkitua = 1;
                                 goto force_done;
                             }

@@ -198,13 +198,11 @@ void* scheduler(void* arg) {
                             }
                             
                             // C) PROGRESOA ERAKUTSI
-                            if (cur->time_in_cpu % 3 == 0) {
-                                int progress = (cur->time_in_cpu * 100) / cur->exec_time;
-                                if (progress < 100) {
-                                    printf("   PID=%d exekutatzen (%s): %d/%d TICK (%d%%)\n",
-                                           cur->pid, get_process_type_short(cur->type),
-                                           cur->time_in_cpu, cur->exec_time, progress);
-                                }
+                            int progress = (cur->time_in_cpu * 100) / cur->exec_time;
+                            if (progress < 100) {
+                                printf("   PID=%d exekutatzen (%s): %d/%d TICK (%d%%)\n",
+                                       cur->pid, get_process_type_short(cur->type),
+                                       cur->time_in_cpu, cur->exec_time, progress);
                             }
                         }
                         
