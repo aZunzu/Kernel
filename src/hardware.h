@@ -4,12 +4,12 @@
 #include "defines.h"
 #include <stdint.h>
 
-/* PCB aurredeklarazioa (poinerrak soilik behar dira hemen) */
+// PCB aurredeklarazioa (pointerrak soilik behar dira hemen)
 struct pcb;
 
-/* MMU (Memory Management Unit) */
+//MMU  
 typedef struct {
-    // TLB (Translation Lookaside Buffer)
+    // TLB 
     struct {
         uint32_t virtual_page : 12;    // Orri birtualaren zenbakia
         uint32_t physical_frame : 12;  // Frame fisikoaren zenbakia
@@ -18,34 +18,35 @@ typedef struct {
     } tlb[TLB_ENTRIES];
     
     int tlb_index;                     // FIFO ordezkapenerako
-    uint32_t ptbr;                     // Page Table Base Register
+    uint32_t ptbr;                     
 } mmu_t;
 
-/* CPU Hardware Thread-a */
+// CPU Hardware Thread-a 
 typedef struct hw_thread {
     int id;
     
-    /* Hardware erregistro berriak */
+    // Hardware erregistro berriak 
     uint32_t pc;                       // Program Counter
     uint32_t ir;                       // Instruction Register
     uint32_t registers[NUM_REGISTERS]; // Erregistro orokorrak
     
-    /* MMU bat hardware thread bakoitzeko */
+    // MMU bat hardware thread bakoitzeko 
     mmu_t mmu;
     
-    /* Prozesu kargatua */
+    // Prozesu kargatua
     struct pcb* current_process;
 } hw_thread_t;
 
-/* MMU funtzioak */
+// MMU funtzioak
 void mmu_init(mmu_t* mmu);
 uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* page_table);
 void mmu_flush_tlb(mmu_t* mmu);
 
-/* Logak kontrolatzeko bandera globala (tick simulazioetan isilarazteko) */
+// Logak kontrolatzeko bandera globala (tick simulazioetan isilarazteko) 
 extern int mmu_logs_enabled;
 
-/* Hardware thread funtzioak */
+
+// Thread hasieratu
 void hw_thread_init(hw_thread_t* hw, int id);
 
 #endif

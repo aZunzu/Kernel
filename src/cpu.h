@@ -16,7 +16,7 @@ typedef struct {
     core_t* cores;
 } cpu_t;
 
-/* Sistema osoko CPU multzoa */
+// Sistema osoko CPU egitura
 typedef struct {
     cpu_t* cpus;
     int cpu_kop;
@@ -25,8 +25,7 @@ typedef struct {
     pthread_mutex_t mutex;
 } cpu_system_t;
 
-/* CPU sistema hasieratzen du */
 void cpu_system_init(cpu_system_t* sys);
-/* CPU sistema askatzen du */
+
 void cpu_system_destroy(cpu_system_t* sys);
 #endif

@@ -5,13 +5,13 @@
 #include "process_queue.h"
 #include "cpu.h"
 
-/* Planifikazio politikak */
+// Planifikazio politikak
 typedef enum {
     POLICY_FIFO,
     POLICY_RULETA_AVANZATUA
 } sched_policy_t;
 
-/* Scheduler-aren parametroak */
+// Scheduler-aren parametroak
 typedef struct {
     SharedData* shared;
     process_queue_t* ready_queue;
@@ -22,10 +22,10 @@ typedef struct {
     int simulation_mode;  // 3=TICK, 5=INSTRUKZIO
 } SchedulerParams;
 
-/* Scheduler haria */
+// Scheduler haria
 void* scheduler(void* arg);
 
-/* Politika nagusia */
+// Politika nagusia
 pcb_t* select_next_process(process_queue_t* q, sched_policy_t policy);
 
 #endif

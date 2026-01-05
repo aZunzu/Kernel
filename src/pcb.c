@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include "pcb.h"
 
-/* PCB berri baten hasieraketa */
+// PCB berri baten hasieraketa 
 pcb_t* pcb_create(int pid, int priority) {
 
     pcb_t* p = malloc(sizeof(pcb_t));

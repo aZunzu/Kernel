@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Programa bat kargatu fitxategitik */
+// Programa bat kargatu fitxategitik 
 program_t* load_program_from_file(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) {
@@ -20,7 +20,7 @@ program_t* load_program_from_file(const char* filename) {
     
     char line[256];
     
-    // 1. .text eta .data irakurri
+    // .text eta .data irakurri
     if (fgets(line, sizeof(line), file)) {
         sscanf(line, ".text %x", &prog->code_start);
     }
@@ -29,7 +29,7 @@ program_t* load_program_from_file(const char* filename) {
         sscanf(line, ".data %x", &prog->data_start);
     }
     
-    // 2. Kodea irakurri (exit arte)
+    // Kodea irakurri (exit arte)
     prog->code = NULL;
     prog->code_size = 0;
     
@@ -52,7 +52,7 @@ program_t* load_program_from_file(const char* filename) {
         prog->code[prog->code_size++] = instruction;
     }
     
-    // 3. Datuak irakurri
+    // Datuak irakurri
     prog->data = NULL;
     prog->data_size = 0;
     
@@ -69,7 +69,7 @@ program_t* load_program_from_file(const char* filename) {
     fclose(file);
     
     printf("[LOADER] Programa kargatu: %s\n", filename);
-    printf("  - Code: %u instrukzio (0x%06X - 0x%06X)\n", 
+    printf("  - Kodea: %u instrukzio (0x%06X - 0x%06X)\n", 
            prog->code_size, prog->code_start, 
            prog->code_start + prog->code_size * 4 - 1);
     printf("  - Data: %u hitz (0x%06X - 0x%06X)\n", 
@@ -79,7 +79,7 @@ program_t* load_program_from_file(const char* filename) {
     return prog;
 }
 
-/* Programa bat askatu */
+// Programa bat askatu
 void free_program(program_t* prog) {
     if (prog) {
         free(prog->code);
@@ -88,7 +88,7 @@ void free_program(program_t* prog) {
     }
 }
 
-/* Prozesu bat sortu programatik */
+// Prozesu bat sortu programatik
 pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
     pcb_t* pcb = pcb_create(pid, priority);
     if (!pcb) return NULL;
@@ -100,7 +100,7 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
         return NULL;
     }
     
-    // 1. Orri-taula sortu
+    // Orri-taula sortu
     pcb->mm_info->page_table = create_page_table();
     if (!pcb->mm_info->page_table) {
         free(pcb->mm_info);
@@ -108,7 +108,7 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
         return NULL;
     }
     
-    // 2. Kode segmentua kargatu memorian
+    // Kode segmentua kargatu memorian
     pcb->mm_info->code_start = prog->code_start;
     for (uint32_t i = 0; i < prog->code_size; i++) {
         uint32_t vaddr = prog->code_start + (i * 4);
@@ -128,13 +128,13 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
             entry->frame_number = ((uint8_t*)frame - phys_mem.data) / PAGE_SIZE;
             entry->present = 1;
             entry->read = 1;
-            entry->write = 0;  // Kodea idatzi ezin da
+            entry->write = 0;  // Kodea ezin da idatzi
             entry->execute = 1;
             entry->accessed = 0;
             entry->dirty = 0;
         }
         
-        // Kodea idatzi memorian (force_write=1 kargatzeko)
+        // Kodea idatzi memorian 
         uint32_t paddr = translate_address_force(pcb->mm_info->page_table, vaddr, 1, 1);
         if (paddr == 0) {
             fprintf(stderr, "[LOADER] Errorea: ezin izan da kodea kargatu\n");
@@ -147,7 +147,7 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
         *mem_loc = prog->code[i];
     }
     
-    // 3. Datu segmentua kargatu memorian
+    //  Datu segmentua kargatu memorian
     pcb->mm_info->data_start = prog->data_start;
     for (uint32_t i = 0; i < prog->data_size; i++) {
         uint32_t vaddr = prog->data_start + (i * 4);
@@ -186,10 +186,10 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
         *mem_loc = prog->data[i];
     }
     
-    // 4. PTBR eguneratu
+    // PTBR eguneratu
     pcb->mm_info->ptbr = ((uint8_t*)pcb->mm_info->page_table - phys_mem.data);
     
-    // Kontar zenbat frame erabilita dagoen
+    // Frame erabiliak zenbatu
     int frames_used = 0;
     page_table_t* pt = pcb->mm_info->page_table;
     for (uint32_t i = 0; i < pt->num_entries; i++) {
@@ -204,14 +204,14 @@ pcb_t* create_process_from_program(int pid, int priority, program_t* prog) {
     return pcb;
 }
 
-/* Prozesaren memoria askatu (terminatzerakoan) */
+// Prozesaren memoria askatu 
 void free_process_memory(pcb_t* proc) {
     if (!proc || !proc->mm_info) return;
     
     page_table_t* pt = proc->mm_info->page_table;
     if (!pt) return;
     
-    // Orri-taulako sarrera bakoitza miatzea eta frame-ak askatu
+    // Orri-taulako frame guztiak askatu
     int frames_freed = 0;
     for (uint32_t i = 0; i < pt->num_entries; i++) {
         pte_t* entry = &pt->entries[i];

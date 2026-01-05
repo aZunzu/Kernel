@@ -4,7 +4,7 @@
 #include "defines.h"
 #include <stdint.h>
 
-/* Orri-taula sarrera (Page Table Entry) */
+// Orri-taula sarrera (Page Table Entry) 
 typedef struct {
     uint32_t frame_number : 12;        // Frame fisikoaren zenbakia
     uint8_t present : 1;               // Orria memorian dagoen
@@ -15,13 +15,13 @@ typedef struct {
     uint8_t dirty : 1;                 // Aldatua izan den
 } pte_t;
 
-/* Orri-taula */
+// Orri-taula
 typedef struct {
     pte_t* entries;                    // Orri-taula sarrerak
     uint32_t num_entries;              // Sarrera kopurua
 } page_table_t;
 
-/* Memoria fisikoa */
+// Memoria fisikoa
 typedef struct {
     uint8_t* data;                     // Memoria fisikoaren edukia
     uint8_t* allocated;                // Frame bakoitza erabilita dagoen
@@ -29,7 +29,7 @@ typedef struct {
     uint32_t free_frames;              // Frame libreak
 } physical_memory_t;
 
-/* Memoria kudeaketa PCB-n */
+// Memoria kudeaketa PCB-n 
 typedef struct {
     uint32_t ptbr;                     // Orri-taula helbide fisikoa
     uint32_t code_start;               // Kode segmentuaren hasiera (birtuala)
@@ -37,7 +37,7 @@ typedef struct {
     page_table_t* page_table;          // Orri-taula (logikoa)
 } mm_info_t;
 
-/* Memoria funtzioak */
+// Memoria funtzioak 
 void physical_memory_init();
 void* allocate_frame();
 void free_frame(void* frame_address);
@@ -46,7 +46,7 @@ void destroy_page_table(page_table_t* pt);
 uint32_t translate_address(page_table_t* pt, uint32_t virtual_addr, int write);
 uint32_t translate_address_force(page_table_t* pt, uint32_t virtual_addr, int write, int force_write);
 
-/* Memoria fisiko globala */
+// Memoria fisiko globala 
 extern physical_memory_t phys_mem;
 
 #endif

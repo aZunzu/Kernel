@@ -13,7 +13,7 @@ void* clock_thread(void* arg) {
 
     int tick = 0;
     
-    // ✅ INFINITO - sin exekutatzen
+   
     while (1) {  
         pthread_mutex_lock(&shared->mutex);
         
@@ -22,13 +22,13 @@ void* clock_thread(void* arg) {
         
         usleep(periodoa * 1000000);
         tick++;
-        shared->sim_tick = tick;  // keep global tick in sync for display/logic
+        shared->sim_tick = tick;  //tick globala erabili printak "sinkronizatu" ahal izateko
         shared->done = 0;
         
         pthread_cond_broadcast(&shared->cond2);
         pthread_mutex_unlock(&shared->mutex);
     }
 
-    // ❌ NUNCA LLEGA AQUÍ
+   
     return NULL;
 }

@@ -2,7 +2,7 @@
 #include "cpu.h"
 #include "config.h"
 
-/* CPU, core eta hardware thread guztiak hasieratzen ditu */
+// CPU core eta thread guztiak hasieratzen ditu 
 void cpu_system_init(cpu_system_t* sys) {
     sys->cpu_kop = CPU_KOP;
     sys->core_kop = CORE_KOP;

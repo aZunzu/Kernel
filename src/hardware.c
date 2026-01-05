@@ -3,10 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-/* MMU logging aukera (lehenetsita itzalita tick soilik moduan) */
+// MMU logging aukera (defektuz itzalita tick soilik moduan) 
 int mmu_logs_enabled = 0;
 
-/* MMU hasieratu */
+
 void mmu_init(mmu_t* mmu) {
     // TLB hutsik
     for (int i = 0; i < TLB_ENTRIES; i++) {
@@ -20,13 +20,13 @@ void mmu_init(mmu_t* mmu) {
     }
 }
 
-/* Helbide birtuala itzuli helbide fisiko bihurtu */
+// Helbide birtuala itzuli helbide fisikora 
 uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* page_table) {
     // Orri zenbakia eta offset-a atera
     uint32_t page_num = virtual_addr >> PAGE_SIZE_BITS;
     uint32_t offset = virtual_addr & (PAGE_SIZE - 1);
 
-    // 1. TLB bilaketa
+    // TLB bilaketa
     for (int i = 0; i < TLB_ENTRIES; i++) {
         if (mmu->tlb[i].valid && mmu->tlb[i].virtual_page == page_num) {
             // TLB hit: itzuli frame fisikoa
@@ -36,7 +36,7 @@ uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* pa
         }
     }
 
-    // 2. TLB miss: orri-taula kontsultatu
+    // TLB miss: orri-taula kontsultatu
     if (!page_table) {
         fprintf(stderr, "[MMU] Errorea: page_table NULL\n");
         return 0;
@@ -54,13 +54,13 @@ uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* pa
         return 0;
     }
     if (write && !entry->write) {
-        fprintf(stderr, "[MMU] Errorea: idazteko baimenik ez orrian: %u\n", page_num);
+        fprintf(stderr, "[MMU] Errorea: orrian idazteko baimenik ez: %u\n", page_num);
         return 0;
     }
 
     uint32_t frame = entry->frame_number;
 
-    // 3. TLB eguneratu (FIFO)
+    // TLB eguneratu (FIFO)
     mmu->tlb[mmu->tlb_index].virtual_page = page_num;
     mmu->tlb[mmu->tlb_index].physical_frame = frame;
     mmu->tlb[mmu->tlb_index].valid = 1;
@@ -68,11 +68,11 @@ uint32_t mmu_translate(mmu_t* mmu, uint32_t virtual_addr, int write, uint8_t* pa
 
     mmu->tlb_index = (mmu->tlb_index + 1) % TLB_ENTRIES;
 
-    // 4. Helbide fisikoa osatu
+    // Helbide fisikoa osatu
     return (frame << PAGE_SIZE_BITS) | offset;
 }
 
-/* TLB garbitu (prozesu aldaketa denean) */
+// TLB garbitu (prozesu aldaketa denean) 
 void mmu_flush_tlb(mmu_t* mmu) {
     for (int i = 0; i < TLB_ENTRIES; i++) {
         mmu->tlb[i].valid = 0;
@@ -84,7 +84,7 @@ void mmu_flush_tlb(mmu_t* mmu) {
     }
 }
 
-/* Hardware thread hasieratu */
+// Thread hasieratu 
 void hw_thread_init(hw_thread_t* hw, int id) {
     hw->id = id;
     hw->pc = 0;

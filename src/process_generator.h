@@ -7,8 +7,8 @@
 typedef struct {
     SharedData* shared;
     process_queue_t* ready_queue;
-    int probability;  // 0-100: probabilidade de sortu prozesu
-    int* next_pid;    // PID kontagailu partekatua (kanpotik hasieratuta)
+    int probability;  // Sortzeko probabilitatea 
+    int* next_pid;    // PID kontagailu partekatua
 } ProcessGenParams;
 
 void* process_generator(void* arg);

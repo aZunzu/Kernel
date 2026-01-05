@@ -28,7 +28,7 @@ void* process_generator(void* arg) {
             pcb_t* p = pcb_create(pid, rand() % 2);
             p->state = READY;
             p->waiting_time = 0;
-            p->exec_time = 2 + rand() % 6;  // Exekuzio denbora aleatorioa (2-7)
+            p->exec_time = 2 + rand() % 6;  // Exekuzio denbora aleatorioa 
 
             queue_push(params->ready_queue, p);
 

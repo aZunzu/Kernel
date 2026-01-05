@@ -22,7 +22,7 @@
 // MENU NAGUSIA - Koordinatzailerako funtzioak
 // =======================================================
 
-// Funtzio laguntzailea: prozesu motaren izena lortu
+// Prozesu motaren izena lortu
 static const char* get_process_type_name(process_type_t type) {
     switch(type) {
         case PROCESS_TICK_BASED: return "TICK bidezkoa";
@@ -39,8 +39,8 @@ void show_main_menu() {
     printf("║ 1. Clock/Timer sinkronizazioa probatu       ║\n");
     printf("║ 2. Scheduler Menu Didaktikoa                ║\n");
     printf("║ 3. Simulazio automatikoa (TICK bidezkoak)   ║\n");
-    printf("║ 4. Sistemaren informazioa                   ║\n");
-    printf("║ 5. Memoria Birtuala (INSTRUKZIO bidezkoak)  ║\n");
+    printf("║ 4. Memoria Birtuala (INSTRUKZIO bidezkoak)  ║\n");
+    printf("║ 5. Sistemaren informazioa                   ║\n");
     printf("║ 0. Irten                                    ║\n");
     printf("╚══════════════════════════════════════════════╝\n");
     printf("Aukera hautatu: ");
@@ -122,10 +122,10 @@ void option_1_synchronization() {
 // 2. AUKERA: Scheduler Menu Didaktikoa
 // =======================================================
 
-// Función ya definida arriba como static
+
 
 void print_ready_queue_menu(process_queue_t* q) {
-    printf("\n--- READY QUEUE (Prest dauden prozesuak) ---\n");
+    printf("\n--- READY QUEUE ---\n");
     if (!q->head) {
         printf(" (hutsik)\n");
         return;
@@ -151,7 +151,7 @@ void print_blocked_queue_menu(process_queue_t* q) {
 }
 
 void print_running_queue_menu(cpu_system_t* cpu_sys) {
-    printf("\n--- RUNNING PROZESUAK (Exekutatzen ari direnak) ---\n");
+    printf("\n--- RUNNING PROZESUAK  ---\n");
     int found = 0;
 
     for (int c = 0; c < cpu_sys->cpu_kop; c++) {
@@ -175,11 +175,9 @@ void option_2_didactic_menu() {
     printf("\n=== 2. AUKERA: SCHEDULER MENU DIDAKTIKOA ===\n");
     printf("Schedulerraren funtzionamendua pausoz pauso\n");
     printf("Prozesu motak: TICK bidezkoak eta INSTRUKZIO bidezkoak\n");
-    printf("\n⚠️  OHARRA:\n");
-    printf("  • Ez dago prozesu hasierakorik. Zu sortu behar dituzu.\n");
-    printf("  • TIMER aktibatzea = Scheduler-a exekutatzea (bien artean bat dira).\n");
-    printf("  • TICK prozesuen bakarrik blokea daitezke I/O-rako.\n");
-    printf("  • INSTRUKZIO prozesuak instrukzioz instrukzio exekutatzen dira.\n");
+    printf("\n OHARRA:\n");
+    printf("  • Ez dago prozesu hasieratuarik, sortu behar dituzu.\n");
+    printf("  • TIMER aktibatzea = Scheduler-a exekutatzea eta CPU-ak exekutatzea.\n");
     printf("------------------------------------------------------\n");
     
     // Memoria fisikoa hasieratu
@@ -247,8 +245,8 @@ void option_2_didactic_menu() {
         printf("\n══════════════════════════════════════════════\n");
         printf("MENU DIDAKTIKOA - TICK: %d\n", tick_count);
         printf("══════════════════════════════════════════════\n");
-        printf("1. Sortu TICK bidezko prozesua (1-2. zatia)    \n");
-        printf("2. Sortu INSTRUKZIO bidezko prozesua (3. zatia)\n");
+        printf("1. Sortu TICK bidezko prozesua     \n");
+        printf("2. Sortu INSTRUKZIO bidezko prozesua \n");
         printf("3. TIMER aktibatu (Scheduler-a aktibatzeko)    \n");
         printf("4. RUNNING -> BLOCKED (I/O eskaera)            \n");
         printf("5. BLOCKED -> READY (I/O amaiera)              \n");
@@ -283,7 +281,7 @@ void option_2_didactic_menu() {
             case 2: {
                 // Memoria nahikoa egiaztatu
                 if (phys_mem.free_frames < 5) {
-                    printf("\n ⚠️  MEMORIA INSUFIZIENTEA: %u frame libre (min 5 behar)\n",
+                    printf("\n  MEMORIA EZ NAHIKOA: %u frame libre (min 5 behar)\n",
                            phys_mem.free_frames);
                     break;
                 }
@@ -306,7 +304,7 @@ void option_2_didactic_menu() {
                            p->pid, prog_idx, p->exec_time, p->priority);
                     printf("   Memoria: %u frame libre\n", phys_mem.free_frames);
                 } else {
-                    printf("\n ⚠️  ERROREA: Ezin izan da prozesua sortu\n");
+                    printf("\n ERROREA: Ezin izan da prozesua sortu\n");
                 }
                 break;
             }
@@ -317,7 +315,7 @@ void option_2_didactic_menu() {
                 printf("TIMER aktibatzen... (TICK #%d)\n", tick_count);
                 printf("══════════════════════════════════════════════\n");
                 
-                // === EXEKUZIO FASEA: Prozesuak exekutatu scheduler baino lehen ===
+                //  EXEKUZIO FASEA: Prozesuak exekutatu scheduler baino lehen 
                 pthread_mutex_lock(&cpu_sys.mutex);
                 
                 for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -338,7 +336,7 @@ void option_2_didactic_menu() {
                                     if (result > 0) {
                                         p->time_in_cpu++;
                                     } else if (result == 0) {
-                                        // EXIT - prozesua terminatu
+                                        // EXIT - prozesua bukatu
                                         p->time_in_cpu++;
                                         hw->current_process = NULL;
                                         free_process_memory(p);
@@ -362,7 +360,7 @@ void option_2_didactic_menu() {
                 
                 pthread_mutex_unlock(&cpu_sys.mutex);
                 
-                // === SCHEDULER AKTIBATU ===
+                //  SCHEDULER AKTIBATU
                 pthread_mutex_lock(&shared.mutex);
                 shared.scheduler_signal = 1;
                 pthread_cond_signal(&shared.cond_scheduler);
@@ -385,12 +383,10 @@ void option_2_didactic_menu() {
                             if (hw->current_process) {
                                 pcb_t* p = hw->current_process;
                                 
-                                // Solo procesos TICK pueden bloquearse
+                                // TICK prozesuak soilik blokea daitezke I/O-rako
                                 if (p->type != PROCESS_TICK_BASED) {
-                                    printf("\n ⚠️  Errorea: PID=%d (%s) ezin da blokeatu.\n", 
+                                    printf("\n  Errorea: PID=%d (%s) ezin da blokeatu.\n", 
                                            p->pid, get_process_type_name(p->type));
-                                    printf("    Arrazoia: INSTRUKZIO prozesuen ezin dira blokea I/O-rako.\n");
-                                    printf("    (Instrukzioz instrukzio exekutatzen dira EXIT arte)\n");
                                     aurkitua = 1;
                                     goto io_done;
                                 }
@@ -457,7 +453,7 @@ void option_2_didactic_menu() {
                                 pcb_t* p = hw->current_process;
                                 hw->current_process = NULL;
                                 
-                                // Memoria liberatu INSTRUKZIO prozesuentzat
+                                // Memoria askatu INSTRUKZIO prozesuentzat
                                 if (p->type == PROCESS_INSTRUCTION_BASED) {
                                     free_process_memory(p);
                                     mmu_flush_tlb(&hw->mmu);
@@ -507,7 +503,7 @@ void option_2_didactic_menu() {
 
 void option_3_automatic_simulation() {
     printf("\n=== 3. AUKERA: SIMULAZIO AUTOMATIKOA (TICK bidezkoak) ===\n");
-    printf("TICK bidezko prozesuen simulazioa (1-2. zatia)\n");
+    printf("TICK bidezko prozesuen simulazioa \n");
     printf("Prozesuak TICK kopuru baten arabera exekutatzen dira\n");
     printf("----------------------------------------------------\n\n");
     
@@ -615,7 +611,7 @@ void option_3_automatic_simulation() {
         
         last_executed_tick = current_tick;
         
-        // === EXEKUZIO: Prozesu TICK-based bakoitzak tick bat aurreratzen du ===
+        //  EXEKUZIO FASEA: Prozesuak exekutatu scheduler baino lehen
         pthread_mutex_lock(&cpu_sys.mutex);
         
         for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -643,7 +639,7 @@ void option_3_automatic_simulation() {
         
         pthread_mutex_unlock(&cpu_sys.mutex);
         
-        // === ERAKUSTE FASEA ===
+        //  ERAKUSTE FASEA
         if (current_tick != last_shown_tick) {
             last_shown_tick = current_tick;
         
@@ -651,7 +647,7 @@ void option_3_automatic_simulation() {
             printf(" TICK #%d - SIMULAZIO AUTOMATIKOA (TICK bidezkoak)\n", current_tick);
             printf("══════════════════════════════════════════════\n");
             
-            // EKINTZA ALEATORIOAK
+            // EKINTZA ALEATORIOAK (blokeatzeak / I/O amaierak)
             if (rand() % 100 < 20) {
                 pthread_mutex_lock(&cpu_sys.mutex);
                 for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -683,7 +679,7 @@ void option_3_automatic_simulation() {
                 }
             }
             
-            // EGOERA OROKORRA
+            
             printf("\n[EGOERA OROKORRA]\n");
             
             int running_count = 0;
@@ -712,7 +708,7 @@ void option_3_automatic_simulation() {
         }
         
         // Hariak exekutatu eta erlojua aurreratu ahal izateko pixka bat lo egin
-        usleep(300000);  // 300ms
+        usleep(300000);  
     }
     
     printf("\n══════════════════════════════════════════════\n");
@@ -752,29 +748,27 @@ void option_3_automatic_simulation() {
 }
 
 // =======================================================
-// 4. AUKERA: Sistemaren informazioa
+// 5. AUKERA: Sistemaren informazioa
 // =======================================================
 
-void option_4_system_info() {
+void option_5_system_info() {
     printf("\n=== SISTEMAREN INFORMAZIOA ===\n");
-    printf("Kernel Simulatzailea - Sistema Eragileak 2025/2026\n");
-    printf("\nOsagai inplementatuak:\n");
-    printf(" 1. ZATIA - Sistemaren arkitektura (1 puntu):\n");
+   
     printf("    • Clock (sistemaren erlojua) - %.1f Hz\n", CLOCK_HZ);
     printf("    • Timer anitzak (%d) frekuntza desberdinetan\n", TENP_KOP);
     printf("    • CPU sistema: %d CPU × %d Core × %d HW Thread\n",
            CPU_KOP, CORE_KOP, HW_THREAD_KOP);
     
-    printf("\n 2. ZATIA - Planifikatzailea (3 puntu):\n");
+ 
     printf("    • Prozesuen sortzailea (Process Generator)\n");
     printf("    • Scheduler (Ruleta Aurreratua politika)\n");
     printf("    • Prozesuen ilarak (Ready, Blocked, Terminated)\n");
     printf("    • PCB (Process Control Block)\n");
     printf("    • PROZESU MOTAK:\n");
-    printf("      - TICK bidezkoak: TICK kopuru baten arabera exekutatzen dira\n");
-    printf("      - INSTRUKZIO bidezkoak: Instrukzioen arabera exekutatzen dira\n");
+    printf("      - TICK bidezkoak\n");
+    printf("      - INSTRUKZIO bidezkoak\n");
     
-    printf("\n 3. ZATIA - Memoriaren kudeatzailea (2 puntu):\n");
+   
     printf("    • Memoria birtualaren kudeaketa\n");
     printf("    • MMU (Memory Management Unit)\n");
     printf("    • TLB (Translation Lookaside Buffer)\n");
@@ -787,38 +781,30 @@ void option_4_system_info() {
     printf("1. Sinkronizazio proba (Clock/Timer)\n");
     printf("2. Menu didaktikoa (Scheduler interaktiboa)\n");
     printf("3. Simulazio automatikoa (TICK bidezkoak)\n");
-    printf("4. Sistemaren informazioa (mezu hau)\n");
-    printf("5. Memoria Birtuala (INSTRUKZIO bidezkoak)\n");
-    
-    printf("\nProiektu osoa inplementatuta (3 zatia):\n");
-    printf("• Arkitektura + Planifikatzailea + Memoria kudeaketa\n");
-    printf("• Sistema hibridoa: TICK eta INSTRUKZIO bidezko prozesuak\n");
-    printf("• Dokumentazioa: Diseinu eta inplementazio zehaztasunak\n");
-    
-    printf("\nKodea: ANSI C\n");
-    printf("Sistema: UNIX motako sistema eragilea\n");
-    printf("Garapena: Git bertsio-kontrola\n");
+    printf("4. Memoria Birtuala (INSTRUKZIO bidezkoak)\n");
+    printf("5. Sistemaren informazioa \n");
+    printf("0. Irten\n");
 }
 
 // =======================================================
-// 5. AUKERA: Memoria Birtuala (INSTRUKZIO bidezkoak)
+// 4. AUKERA: Memoria Birtuala (INSTRUKZIO bidezkoak)
 // =======================================================
 
-void option_5_memory_virtual_simulation() {
+void option_4_memory_virtual_simulation() {
     mmu_logs_enabled = 1;  // MMU log-ak gaitu INSTRUKZIO simulaziorako
-    printf("\n=== 5. AUKERA: MEMORIA BIRTUALAREN SIMULAZIOA ===\n");
+    printf("\n=== 4. AUKERA: MEMORIA BIRTUALAREN SIMULAZIOA ===\n");
     printf("INSTRUKZIO bidezko prozesuen simulazioa (3. zatia)\n");
     printf("Prozesuak instrukzioen arabera exekutatzen dira\n");
     printf("--------------------------------------------------\n\n");
     
-    printf("FAZE 1: Sistemaren arkitektura hedatu\n");
+    printf("FASE 1: Sistemaren arkitektura hedatu\n");
     printf("--------------------------------------\n");
     
-    // 1. Memoria fisikoa hasieratu
+    //  Memoria fisikoa hasieratu
     printf("1. Memoria fisikoa hasieratzen...\n");
     physical_memory_init();
     
-    // 2. Programa fitxategiak sortu (simulazioa)
+    // Programa fitxategiak sortu (simulazioa)
     // Programak kargatu elf karpetatik
     const char* elf_files[] = {
         "elf/prog000.elf",
@@ -847,10 +833,10 @@ void option_5_memory_virtual_simulation() {
     
     printf("   Guztira: %d instrukzio\n", total_instructions);
     
-    printf("\nFAZE 2: Prozesuak sortu\n");
+    printf("\nFASE 2: Prozesuak sortu\n");
     printf("------------------------\n");
     
-    // 3. CPU sistema hasieratu
+    //  CPU sistema hasieratu
     printf("3. CPU eta hardware hasieratzen...\n");
     cpu_system_t cpu_sys;
     cpu_system_init(&cpu_sys);
@@ -861,7 +847,7 @@ void option_5_memory_virtual_simulation() {
     queue_init(&blocked_q);
     queue_init(&terminated_q);
     
-    // 5. 4 prozesu sortu (hasierako karga finkoa - ELF-etik kargatuta)
+    // 4 prozesu sortu (hasierako karga finkoa - ELF-etik kargatuta)
     printf("4. 4 prozesu ELF-etik sortzen (hasierako karga finkoa)...\n");
     int processes_created = 0;
     int total_spawned = 0;
@@ -887,7 +873,7 @@ void option_5_memory_virtual_simulation() {
         }
     }
     
-    printf("\nFAZE 3: Simulazioa\n");
+    printf("\nFASE 3: Simulazioa\n");
     printf("------------------\n");
     
     // Scheduler eta sinkronizazioa ezarri
@@ -915,14 +901,14 @@ void option_5_memory_virtual_simulation() {
     pthread_t sched_thread;
     pthread_create(&sched_thread, NULL, scheduler, &sched_params);
     
-    // 7. Clock eta Timer sortu
+    // Clock eta Timer sortu
     ClockParams clock_params = {&shared, CLOCK_HZ};
     pthread_t clock_tid;
     pthread_create(&clock_tid, NULL, clock_thread, &clock_params);
     
     TimerParams timer_params;
     timer_params.shared = &shared;
-    timer_params.ticks_nahi = 2;  // Scheduler 2 tick-eko aktibatzen da - execution tick bakoitzean
+    timer_params.ticks_nahi = 2;  // Scheduler 2 tick-eko aktibatzen da.  execution tick bakoitzean
     timer_params.id = 1;
     timer_params.izena = "MEMORIA TIMER";
     timer_params.activate_scheduler = 1;
@@ -943,7 +929,7 @@ void option_5_memory_virtual_simulation() {
     printf("║ Execution: TICK bakoitzean                  ║\n");
     printf("╚══════════════════════════════════════════════╝\n\n");
     
-    // HW thread-ak exekutatzen dira tick bakoitzean, scheduler asignatzen du 2 tick-eko
+    // Thread-ak exekutatzen dira tick bakoitzean, scheduler asignatzen du 2 tick-eko
     int tick_max = 300;
     int last_shown_tick = 0;
     int last_executed_tick = -1;
@@ -986,12 +972,12 @@ void option_5_memory_virtual_simulation() {
                 printf("\n[EKINTZA] INSTR prozesu berria: PID=%d (ELF %d, %d instrukzio, %s)\n",
                        proc->pid, prog_idx, proc->exec_time, prio_text);
             } else {
-                printf("\n[EKINTZA] MEMORIA INSUFIZIENTEA: ezin izan da INSTR prozesu berria sortu (%u frame libre)\n",
+                printf("\n[EKINTZA] MEMORIA INSUFIZIENTEA: ezin izan da prozesu berria sortu (%u frame libre)\n",
                        phys_mem.free_frames);
             }
         }
         
-        // === EXEKUZIO: HW thread-ek instrukzioak exekutatzen dituzte ===
+        // EXEKUZIO: HW thread-ek instrukzioak exekutatzen dituzte 
         pthread_mutex_lock(&cpu_sys.mutex);
         
         for (int c = 0; c < cpu_sys.cpu_kop; c++) {
@@ -1015,7 +1001,7 @@ void option_5_memory_virtual_simulation() {
                             queue_push(&terminated_q, p);  // Scheduler-ak egiaztatu eta TERMINATED jarriko du
                             mmu_flush_tlb(&hw->mmu);
                         } else if (result < 0) {
-                            // Errorea - markar exit code eta ilaran jarri
+                            // Errorea
                             p->exit_code = -1;
                             hw->current_process = NULL;
                             free_process_memory(p);  // Memoria liberatu errorean ere
@@ -1029,7 +1015,7 @@ void option_5_memory_virtual_simulation() {
         
         pthread_mutex_unlock(&cpu_sys.mutex);
         
-        // === ERAKUSTE FASEA ===
+        // ERAKUSTE FASEA 
         if (current_tick != last_shown_tick) {
             last_shown_tick = current_tick;
         
@@ -1151,15 +1137,7 @@ void option_5_memory_virtual_simulation() {
 int main() {
     int option;
     
-    printf("══════════════════════════════════════════════\n");
-    printf("    KERNEL SIMULATZAILEA - KOORDINATZAILEA\n");
-    printf("        Sistema Eragileak 2025-2026\n");
-    printf("          PROIEKTU OSOA (3 ZATIAK)\n");
-    printf("══════════════════════════════════════════════\n");
-    printf("Egilea: [ZURE IZENA HEMEN]\n");
-    printf("NAN: [ZURE NAN HEMEN]\n");
-    printf("Data: %s\n", __DATE__);
-    printf("══════════════════════════════════════════════\n");
+    printf("=== PROZESU SCHEDULER SIMULATZAILEA ===\n");
     
     // Ausazko zenbakiak hasieratu
     srand(time(NULL));
@@ -1183,17 +1161,14 @@ int main() {
                 option_3_automatic_simulation();
                 break;
             case 4:
-                option_4_system_info();
+                option_4_memory_virtual_simulation();
                 break;
             case 5:
-                option_5_memory_virtual_simulation();
+                option_5_system_info();
                 break;
             case 0:
-                printf("\nAgur! Kernel Simulatzailea erabiltzeagatik eskerrik asko.\n");
-                printf("Proiektua osorik inplementatuta:\n");
-                printf("  1. Arkitektura (Clock/Timer, CPU sistema)\n");
-                printf("  2. Planifikatzailea (Scheduler, politika aurreratuak)\n");
-                printf("  3. Memoria kudeaketa (Memoria birtuala, MMU, TLB)\n");
+                printf("\nPrograma amaituta.\n");
+                
                 break;
             default:
                 printf("\n Aukera okerra. 0 eta 5 artean aukeratu.\n");

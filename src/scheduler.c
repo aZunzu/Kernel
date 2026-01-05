@@ -11,11 +11,8 @@
 
 #define SAFETY_QUANTUM 50  // Safety net: 50 tick baino gehiago exekutatzen badu
 
-/* =======================================================
- * FUNTZIO LAGUNTZAILEAK
- * ======================================================= */
 
-// Funtzio laguntzaileak prozesu motaren izena lortzeko
+
 static const char* get_process_type_name(process_type_t type) {
     switch(type) {
         case PROCESS_TICK_BASED: return "TICK bidezkoa";
@@ -133,7 +130,7 @@ void* scheduler(void* arg) {
         printf("\n[SCHEDULER] Timer-ak aktibatu du (Sistemaren TICK: %d, Scheduler exekuzio: %d)\n", 
                current_tick, scheduler_tick_count);
         
-        // ===== 1. WAITING TIME EGUNERATU =====
+        // READY egoeran dauden prozesuen itxaron denbora eguneratu
         for (pcb_t* p = params->ready_queue->head; p; p = p->next) {
             if (p->state == READY) {
                 p->waiting_time++;
@@ -142,7 +139,7 @@ void* scheduler(void* arg) {
         
         pthread_mutex_lock(&cpu_sys->mutex);
         
-        // Exekuzio fasea: HW thread-etan dauden prozesuak behatzen dira
+        // Exekuzio fasea: thread-etan dauden prozesuak behatzen dira
         int completed_this_tick = 0;
         int instructions_this_tick = 0;
         int tick_based_procs = 0;
@@ -174,7 +171,7 @@ void* scheduler(void* arg) {
                             // TICK bidezko prozesua: main loop-ean aurreratzen da tick bakoitzean
                             // Scheduler-ak soilik egiaztatu bukaerak
                             
-                            // A) PROZESUA BUKATU (exec_time TICK-etatik)
+                            //  PROZESUA BUKATU (exec_time TICK-etatik)
                             if (cur->time_in_cpu >= cur->exec_time) {
                                 printf("   PID=%d BUKATUTA (%s: %d/%d TICK)\n", 
                                        cur->pid, get_process_type_short(cur->type),
@@ -186,7 +183,7 @@ void* scheduler(void* arg) {
                                 continue;
                             }
                             
-                            // B) SAFETY QUANTUM
+                            //  SAFETY QUANTUM
                             if (cur->time_in_cpu >= SAFETY_QUANTUM) {
                                 printf("   PID=%d → READY (safety quantum, %d TICK)\n", 
                                        cur->pid, cur->time_in_cpu);
@@ -197,7 +194,7 @@ void* scheduler(void* arg) {
                                 continue;
                             }
                             
-                            // C) PROGRESOA ERAKUTSI
+                            //  PROGRESOA ERAKUTSI
                             int progress = (cur->time_in_cpu * 100) / cur->exec_time;
                             if (progress < 100) {
                                 printf("   PID=%d exekutatzen (%s): %d/%d TICK (%d%%)\n",
@@ -238,7 +235,7 @@ void* scheduler(void* arg) {
             printf("   %d prozesu bukatu\n", completed_this_tick);
         }
         
-        // Esleipen fasea: hutsik dauden HW thread-etan prozesuak esleitu
+        // Esleipen fasea: hutsik dauden thread-etan prozesuak esleitu
         int dispatched_this_tick = 0;
         
         for (int c = 0; c < cpu_sys->cpu_kop; c++) {
@@ -292,7 +289,7 @@ void* scheduler(void* arg) {
             printf("   %d prozesu esleitu\n", dispatched_this_tick);
         }
         
-        // Blocked prozesuak kudeatu: I/O osoa simulatu (azpi probabilitatean)
+        // Blocked prozesuak kudeatu: I/O osoa simulatu 
         int io_completed = 0;
         pcb_t* prev = NULL;
         pcb_t* current = params->blocked_queue->head;
@@ -343,10 +340,9 @@ void* scheduler(void* arg) {
     return NULL;
 }
 
-/* =======================================================
- * PROZESUEN ANALISIA (estatistikak kalkulatzeko)
- * ======================================================= */
 
+
+// PROZESUEN ANALISIA
 void analyze_processes(SchedulerParams* params) {
     int total_waiting = 0;
     int total_turnaround = 0;

@@ -3,10 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Memoria fisiko globala */
+//Memoria fisiko globala 
 physical_memory_t phys_mem;
 
-/* Memoria fisikoa hasieratu */
+// Memoria fisikoa hasieratu 
 void physical_memory_init() {
     phys_mem.size = PHYS_MEM_SIZE;
     phys_mem.data = (uint8_t*)malloc(phys_mem.size);
@@ -32,7 +32,7 @@ void physical_memory_init() {
     printf("  - User frame libreak: %u\n", phys_mem.free_frames);
 }
 
-/* Frame bat esleitu */
+// Frame bat esleitu
 void* allocate_frame() {
     for (uint32_t i = USER_FRAME_START; i < NUM_FRAMES; i++) {
         if (!phys_mem.allocated[i]) {
@@ -50,7 +50,7 @@ void* allocate_frame() {
     return NULL;
 }
 
-/* Frame bat askatu */
+// Frame bat askatu
 void free_frame(void* frame_address) {
     uint32_t offset = (uint8_t*)frame_address - phys_mem.data;
     uint32_t frame_num = offset / PAGE_SIZE;
@@ -65,7 +65,7 @@ void free_frame(void* frame_address) {
     }
 }
 
-/* Orri-taula bat sortu */
+// Orri-taula bat sortu
 page_table_t* create_page_table() {
     page_table_t* pt = (page_table_t*)malloc(sizeof(page_table_t));
     if (!pt) return NULL;
@@ -83,7 +83,7 @@ page_table_t* create_page_table() {
     return pt;
 }
 
-/* Orri-taula bat suntsitu */
+// Orri-taula bat suntsitu
 void destroy_page_table(page_table_t* pt) {
     if (pt) {
         free(pt->entries);
@@ -91,7 +91,7 @@ void destroy_page_table(page_table_t* pt) {
     }
 }
 
-/* Helbide birtuala helbide fisiko bihurtu */
+// Helbide birtuala helbide fisiko bihurtu
 uint32_t translate_address(page_table_t* pt, uint32_t virtual_addr, int write) {
     uint32_t page_num = virtual_addr >> PAGE_SIZE_BITS;
     uint32_t offset = virtual_addr & (PAGE_SIZE - 1);
@@ -121,7 +121,7 @@ uint32_t translate_address(page_table_t* pt, uint32_t virtual_addr, int write) {
     return physical_addr;
 }
 
-/* Helbide birtuala helbide fisiko bihurtu (baimena inposatu) */
+// Helbide birtuala helbide fisiko bihurtu (baimena inposatu)
 uint32_t translate_address_force(page_table_t* pt, uint32_t virtual_addr, int write, int force_write) {
     uint32_t page_num = virtual_addr >> PAGE_SIZE_BITS;
     uint32_t offset = virtual_addr & (PAGE_SIZE - 1);

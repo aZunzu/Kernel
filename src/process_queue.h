@@ -4,12 +4,14 @@
 #include <pthread.h>
 #include "pcb.h"
 
+// Prozesu ilara egitura
 typedef struct {
-    pcb_t* head;
-    pcb_t* tail;
+    pcb_t* head;    
+    pcb_t* tail;    
     pthread_mutex_t mutex;
 } process_queue_t;
 
+// Prozesu ilara funtzioak
 void queue_init(process_queue_t* q);
 void queue_push(process_queue_t* q, pcb_t* pcb);
 pcb_t* queue_pop(process_queue_t* q);

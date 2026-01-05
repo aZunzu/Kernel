@@ -34,7 +34,7 @@ void* timer_thread(void* arg) {
                    izena, zikloak/ticks_nahi, maiztasuna);
             tick_jaso = 0;
             
-            // Timer-ak scheduler-i jakinarazten dio bere lana egin dezan (baldin eta konfiguratu bada)
+            // Timer-ak scheduler-i jakinarazten dio bere lana egin dezan 
             if (activate_scheduler) {
                 shared->scheduler_signal = 1;  // Seinalea piztu
                 pthread_cond_broadcast(&shared->cond_scheduler);  // Scheduler-i jakinarazi
@@ -42,7 +42,7 @@ void* timer_thread(void* arg) {
             }
         }
         
-        // Process Generator-ri jakinarazi (hau mantentzen da)
+        // Process Generator-ri jakinarazi 
         pthread_cond_signal(&shared->cond);
         
         // Clock-aren hurrengo tick-a itxaron

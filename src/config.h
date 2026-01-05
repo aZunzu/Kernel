@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-/* Partekatutako datuen egitura */
+// Partekatutako datuen egitura 
 typedef struct {
     pthread_mutex_t mutex;
     pthread_cond_t cond;           // Clock -> Process Generator
@@ -16,26 +16,26 @@ typedef struct {
     int scheduler_signal;    // Timer-ak Scheduler-i jakinarazteko
 } SharedData;
 
-/* Clock-aren parametroak */
+// Clock-aren parametroak 
 typedef struct {
     SharedData* shared;
     double hz;
 } ClockParams;
 
-/* Timer-aren parametroak */
+//Timer-aren parametroak 
 typedef struct {
     SharedData* shared;
     int ticks_nahi;
     int id;
     char* izena;
-    int activate_scheduler;  // 1 = scheduler aktibatu, 0 = ez aktibatu
+    int activate_scheduler;  // 1=bai 0=ez
 } TimerParams;
 
-/* Clock eta Timer hari funtzioak */
+// Clock eta Timer hari funtzioak 
 void* clock_thread(void* arg);
 void* timer_thread(void* arg);
 
-/* Sistemaren konfigurazioa */
+// Sistemaren konfigurazioa 
 #define CLOCK_HZ 2.0
 #define TENP_KOP 3
 
@@ -43,7 +43,7 @@ void* timer_thread(void* arg);
 #define TIMER2_TICKS 4
 #define TIMER3_TICKS 6
 
-/* CPU arkitekturaren konfigurazioa */
+// CPU arkitekturaren konfigurazioa 
 #define CPU_KOP 1
 #define CORE_KOP 2
 #define HW_THREAD_KOP 2

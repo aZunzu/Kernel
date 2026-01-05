@@ -2,7 +2,7 @@
 #include "memory.h"
 #include <stdio.h>
 
-/* Hitza irakurri memoria fisikotik */
+// Hitza irakurri memoria fisikotik 
 static uint32_t read_word(uint32_t physical_addr) {
     if (physical_addr >= PHYS_MEM_SIZE) {
         fprintf(stderr, "[EXECUTION] Errorea: helbide fisikoa handiegia: 0x%06X\n", physical_addr);
@@ -13,7 +13,7 @@ static uint32_t read_word(uint32_t physical_addr) {
     return *addr;
 }
 
-/* Hitza idatzi memoria fisikoan */
+// Hitza idatzi memoria fisikoan 
 static void write_word(uint32_t physical_addr, uint32_t value) {
     if (physical_addr >= PHYS_MEM_SIZE) {
         fprintf(stderr, "[EXECUTION] Errorea: helbide fisikoa handiegia: 0x%06X\n", physical_addr);
@@ -24,9 +24,9 @@ static void write_word(uint32_t physical_addr, uint32_t value) {
     *addr = value;
 }
 
-/* Exekuzio pauso bat (instrukzio bat) */
+//Exekuzio pauso bat (instrukzio bat) 
 int execute_step(hw_thread_t* hw, pcb_t* process) {
-    // 1. Instrukzioa kargatu PC helbidetik
+    // Instrukzioa kargatu PC helbidetik
     uint32_t vaddr = process->pc;
     uint32_t paddr = mmu_translate(&hw->mmu, vaddr, 0, 
                                    (uint8_t*)process->mm_info->page_table);
@@ -40,14 +40,14 @@ int execute_step(hw_thread_t* hw, pcb_t* process) {
     hw->pc = vaddr + 4;
     process->pc += 4;
     
-    // 2. Instrukzioa dekodetu
+    // Instrukzioa dekodetu
     uint8_t opcode = (hw->ir >> 28) & 0xF;
     uint8_t reg1 = (hw->ir >> 24) & 0xF;
     uint8_t reg2 = (hw->ir >> 20) & 0xF;
     uint8_t reg3 = (hw->ir >> 16) & 0xF;
     uint32_t address = hw->ir & 0xFFFFFF;
     
-    // 3. Instrukzioa exekutatu
+    // Instrukzioa exekutatu
     switch (opcode) {
         case OPCODE_LD: {  // ld R, [addr]
             uint32_t data_vaddr = address;
@@ -106,7 +106,7 @@ int execute_step(hw_thread_t* hw, pcb_t* process) {
     return 1;  // Instrukzioa ondo exekutatu da
 }
 
-/* Erregistroak erakutsi */
+// Erregistroak erakutsi 
 void print_registers(hw_thread_t* hw) {
     printf("=== ERREGISTROAK (HW Thread %d) ===\n", hw->id);
     for (int i = 0; i < NUM_REGISTERS; i += 4) {
@@ -119,7 +119,7 @@ void print_registers(hw_thread_t* hw) {
     printf("PC: 0x%06X  IR: 0x%08X\n", hw->pc, hw->ir);
 }
 
-/* Memoria tarte bat erakutsi */
+// Memoria tarte bat erakutsi 
 void print_memory_range(uint32_t start, uint32_t end) {
     printf("=== MEMORIA (0x%06X - 0x%06X) ===\n", start, end);
     
