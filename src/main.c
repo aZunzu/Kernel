@@ -553,10 +553,12 @@ void option_3_automatic_simulation() {
     }
 
     // Prozesu berriak probabilitatez injektatu (tick bakoitzean)
+    int next_pid_gen = 5;  // Hasierako 4 PIDen ondoren
     ProcessGenParams gen_params = {
         .shared = &shared,
         .ready_queue = &ready_q,
-        .probability = 25  // %25eko aukera tick bakoitzean
+        .probability = 25,  // %25eko aukera tick bakoitzean
+        .next_pid = &next_pid_gen
     };
     pthread_t gen_thread;
     pthread_create(&gen_thread, NULL, process_generator, &gen_params);

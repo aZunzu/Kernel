@@ -3,8 +3,6 @@
 #include "process_generator.h"
 #include "pcb.h"
 
-static int next_pid = 1;
-
 void* process_generator(void* arg) {
     ProcessGenParams* params = (ProcessGenParams*)arg;
 
@@ -21,7 +19,13 @@ void* process_generator(void* arg) {
         int prob = (params->probability > 0) ? params->probability : 100;
         
         if (rand() % 100 < prob) {
-            pcb_t* p = pcb_create(next_pid++, rand() % 2);
+            // PID berria hartu kontagailu partekatutik
+            int pid = 0;
+            pthread_mutex_lock(&params->shared->mutex);
+            pid = (*params->next_pid)++;
+            pthread_mutex_unlock(&params->shared->mutex);
+
+            pcb_t* p = pcb_create(pid, rand() % 2);
             p->state = READY;
             p->waiting_time = 0;
             p->exec_time = 2 + rand() % 6;  // Exekuzio denbora aleatorioa (2-7)
